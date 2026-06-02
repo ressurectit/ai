@@ -140,7 +140,8 @@ Default variants present under `button` are `primary`, `secondary`, `tertiary`, 
 ## Patterns and gotchas
 
 - **Use `var(--...)` inside the theme map** to point one key at another. The defaults do this heavily, e.g. `alert.info.background: var(--theme-info)` so changing `theme.info` cascades to every alert/button/text variant that semantically maps to "info".
-- **`unset` is meaningful.** Several button defaults are `unset` so the framework's later CSS-var fallback chain (`--button-<variant>-disabled-foreground, var(--button-disabled-foreground)`) can take over. Don't set `unset` unless you really mean to opt out.
+- **Button variants default to theme colors (v2.6.0+).** `button.<variant>.background` defaults to `var(--theme-<variant>)` and `button.<variant>.foreground` to `var(--theme-on<Variant>)`. So a new button variant works automatically if you supply matching `theme.<variant>` / `theme.on<Variant>` colors — no `button.<variant>.*` keys required for the base look.
+- **`unset` is meaningful.** Some legacy keys are `unset` so the framework's later CSS-var fallback chain (`--button-<variant>-disabled-foreground, var(--button-disabled-foreground)`) can take over. Don't set `unset` unless you really mean to opt out.
 - **Sizes come from `getSize($fontSize, N)`** so they scale with the configured `$fontSize`. Use the same `mixins.getSize` helper when adding your own keys to keep things consistent.
 - **`color.scale($base, $lightness: ±N%)`** is the SCSS idiom used throughout the defaults for hover/active variants.
 - **CSS variables are emitted under `.app-page.<themeName>`**, so multiple themes can coexist on the same page (e.g. by switching the class on a wrapper).

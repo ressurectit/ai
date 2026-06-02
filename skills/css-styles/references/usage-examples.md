@@ -2,6 +2,8 @@
 
 Idiomatic HTML and SCSS patterns. Use as templates when scaffolding new components in any project that depends on `@css-styles/common` and `@css-styles/themes`.
 
+> Examples use the **single-class form** for buttons (`class="btn-primary"`) and alerts (`class="alert-warning"`) introduced in `@css-styles/themes` v2.6.0. On older versions (or in legacy code that hasn't been migrated yet) you'll see the two-class form `class="btn btn-primary"` / `class="alert alert-warning"` — both work; the single-class form is preferred in new code.
+
 ## Page chrome
 
 ```html
@@ -36,8 +38,8 @@ Idiomatic HTML and SCSS patterns. Use as templates when scaffolding new componen
     </div>
 
     <div class="flex-row flex-end buttons-gap">
-        <button type="button" class="btn btn-info" (click)="reset()">Reset</button>
-        <button type="submit" class="btn btn-primary">Filter</button>
+        <button type="button" class="btn-info" (click)="reset()">Reset</button>
+        <button type="submit" class="btn-primary">Filter</button>
     </div>
 </form>
 ```
@@ -65,8 +67,8 @@ Idiomatic HTML and SCSS patterns. Use as templates when scaffolding new componen
 
 ```html
 <div class="flex-row flex-end buttons-gap padding-small">
-    <button type="button" class="btn btn-info" mat-dialog-close>Cancel</button>
-    <button type="button" class="btn btn-primary" (click)="save()">Save</button>
+    <button type="button" class="btn-info" mat-dialog-close>Cancel</button>
+    <button type="button" class="btn-primary" (click)="save()">Save</button>
 </div>
 ```
 
@@ -78,7 +80,7 @@ Idiomatic HTML and SCSS patterns. Use as templates when scaffolding new componen
     <a class="cursor-pointer" (click)="showInfo()" title="More info">
         <span class="fas fa-info-circle"></span>
     </a>
-    <button class="btn btn-primary" (click)="run()">Run</button>
+    <button class="btn-primary" (click)="run()">Run</button>
 </div>
 ```
 
@@ -92,12 +94,12 @@ Idiomatic HTML and SCSS patterns. Use as templates when scaffolding new componen
 ## Alerts
 
 ```html
-<div class="alert alert-warning margin-bottom-small">
+<div class="alert-warning margin-bottom-small">
     Heads up — input definition is outdated.
 </div>
 
-<div class="alert alert-success">Saved.</div>
-<div class="alert alert-danger">Operation failed.</div>
+<div class="alert-success">Saved.</div>
+<div class="alert-danger">Operation failed.</div>
 ```
 
 ## Two-column responsive-ish layout with subgrid-style alignment
@@ -179,8 +181,8 @@ The `flex-1` is what gives the span `min-width: 0`, without which `text-ellipsis
 
 ```html
 <div class="flex-row flex-end buttons-gap margin-top-small">
-    <button type="button" class="btn btn-info" (click)="cancel()">Cancel</button>
-    <button type="submit" class="btn btn-primary">Submit</button>
+    <button type="button" class="btn-info" (click)="cancel()">Cancel</button>
+    <button type="submit" class="btn-primary">Submit</button>
 </div>
 ```
 

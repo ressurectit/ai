@@ -128,8 +128,9 @@ Every class above has a matching `%placeholder` you can `@extend` from your comp
 ## Component classes (from themes parts)
 
 ### Buttons (`css-buttons`)
-- `btn` — base button (padding, border, font, transition all driven by `--button-*`)
-- `btn-<variant>` — `primary`, `secondary`, `success`, `info`, `warning`, `danger`, `error`, plus any custom variants the host app declared (`link`, `my-new`, …)
+- `btn-<variant>` — built-in variants: `primary`, `secondary`, `success`, `info`, `warning`, `danger`, `error`, `default`, plus any custom variants the host app passes via `$buttonTypes` (`link`, `my-new`, …)
+- Base styling (padding, font, border, transition, all driven by `--button-*`) is applied via the attribute selector `[class|="btn"]` since v2.6.0, so the **single class form is sufficient**: `<button class="btn-primary">`. The legacy two-class form `<button class="btn btn-primary">` still applies (the `.btn` selector remains for backwards compatibility).
+- Since v2.6.0, each variant's `background` / `foreground` defaults to `var(--theme-<variant>)` / `var(--theme-on<Variant>)`. To add a new variant it's often enough to register it via `$buttonTypes` and add `theme.<variant>` + `theme.on<Variant>` colors — no per-variant button map needed.
 - States: `:hover`, `:focus`, `:active`, `:disabled` / `.disabled` — automatic
 - Modifiers:
   - `.icon-only` — strips padding (used for icon-only buttons)
@@ -148,8 +149,8 @@ Every class above has a matching `%placeholder` you can `@extend` from your comp
 - `inputs-gap` — `column-gap`/`row-gap` from `--inputs-*` for rows/columns of fields
 
 ### Alerts (`css-alerts`)
-- `alert` — base
 - `alert-<type>` — `info`, `warning`, `success`, `danger`, `error` (configurable)
+- Base padding/border-radius/margin are applied via the attribute selector `[class|="alert"]` since v2.6.0, so the single class is sufficient: `<div class="alert-warning">`. The legacy two-class form `alert alert-warning` still works.
 
 ### Blocks (`css-blocks`)
 - `<name>-block` — themed panel. Default config exposes `highlight-block`. Host apps may enable additional ones (e.g. `primary-block`, `secondary-block`) by passing `$blockTypes` to `css-blocks` and adding matching keys to the theme map.

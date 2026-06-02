@@ -94,9 +94,9 @@ Plus raw fixed pixel CSS variables `--size-1px` … `--size-32px` (and `-fixed` 
 
 ### Component classes (from `themes` parts)
 
-- **Buttons** (`css-buttons`): `btn` + variant `btn-{primary|secondary|success|info|warning|danger|error|link|...}` (variants are configurable by the host app via `$buttonTypes`). State modifiers: `:hover`, `:focus`, `:active`, `:disabled`/`.disabled`; layout modifiers: `.icon-only`, `.only-content` (text/icon variant), and container `.buttons-gap` for spacing groups of buttons.
+- **Buttons** (`css-buttons`): `btn-<variant>` — built-in variants `primary`, `secondary`, `success`, `info`, `warning`, `danger`, `error`, `default`, plus any custom variants the host app declared (`link`, `my-new`, …). Base styling is applied via the attribute selector `[class|="btn"]` (since v2.6.0), so a single class `btn-primary` is sufficient. The legacy two-class form `btn btn-primary` still works. State modifiers: `:hover`, `:focus`, `:active`, `:disabled`/`.disabled`; layout modifiers: `.icon-only`, `.only-content` (text/icon variant), and container `.buttons-gap` for spacing groups of buttons.
 - **Forms** (`css-forms`): `form-group` (flex container, direction from `--formGroup-direction`), `form-control` (input/select/textarea), `form-control-static`, `input-group` + `input-group-addon`, `control-label`, `has-error` wrapper (turns inputs red), `.validation-error-div` + `.form-error`, `inputs-gap` (column/row gaps from theme).
-- **Alerts** (`css-alerts`): `alert` + `alert-{info|warning|success|danger|error}` (configurable).
+- **Alerts** (`css-alerts`): `alert-<type>` — `info`, `warning`, `success`, `danger`, `error` (configurable). Base padding/border is applied via `[class|="alert"]` (since v2.6.0), so the single class is sufficient; the legacy two-class form `alert alert-info` still works.
 - **Blocks** (`css-blocks`): `{name}-block` per configured block type. Defaults to `highlight-block`; host apps commonly enable additional ones like `primary-block` and `secondary-block`. Each pulls `--block-{name}-background`, `--block-{name}-foreground`, `--block-{name}-padding`, `--block-{name}-borderRadius`, `--block-{name}-scrollbar`.
 - **Titles** (`css-titles`): `page-title` (big themed bar), `section-title`, `subsection-title`.
 - **Texts** (`css-texts`): `text-{primary|danger|warning|success|info}` (background + foreground) and `text-{...}-transparent` (foreground only).
@@ -115,7 +115,9 @@ For the full generated list (every size combination), see `references/utility-cl
 - **Spacing comes from the scale.** Don't write `style="margin-top: 12px"`. Use `margin-top-small` (10px) or `margin-top-medium` (15px). When you need a literal px, use the `--size-12px` variable.
 - **Group with gaps, not margins.** Inside a flex/grid container, prefer `gap-{size}`, `inputs-gap`, or `buttons-gap` over per-child margins.
 - **Group form fields with `form-group`.** Each label + input pair lives in a `<div class="form-group">`. Multiple groups go in a row with `inputs-gap`.
-- **Buttons.** `<button class="btn btn-primary">` for the main action. Secondary actions: `btn-info`, `btn-secondary`. Destructive: `btn-danger`. Wrap groups in `<div class="flex-row buttons-gap">` or `<div class="flex-row flex-end buttons-gap">` to push to the right.
+- **Buttons.** `<button class="btn-primary">` for the main action. Secondary actions: `btn-info`, `btn-secondary`. Destructive: `btn-danger`. Wrap groups in `<div class="flex-row buttons-gap">` or `<div class="flex-row flex-end buttons-gap">` to push to the right.
+
+  > **Single-class usage (v2.6.0+).** Since v2.6.0 of `@css-styles/themes` the base button styling is applied via the attribute selector `[class|="btn"]`, so `class="btn-primary"` alone is enough — you no longer need `class="btn btn-primary"`. The older two-class form still works for backwards compatibility, so both styles coexist in legacy code. Prefer the single-class form in new templates; it's less noisy.
 - **Page chrome.** Pages typically open with `<div class="page-title top-border-round-xs text-uppercase flex-row">…</div>` followed by a block panel (`highlight-block`, or a custom one like `secondary-block` if the host app declared it) with `bottom-border-round-xs padding-horizontal-big` for the content. Within, `section-title` separates major regions.
 - **Status text.** `text-success`, `text-danger`, `text-warning`, `text-info`, `text-primary`. Use the `-transparent` suffix when you don't want a background block.
 - **Ellipsis for long text inside flex.** `class="text-ellipsis"` on the element + `min-width: 0` (already on `flex-{n}`) on its parent flex child.
@@ -146,8 +148,8 @@ For the full generated list (every size combination), see `references/utility-cl
         </div>
     </div>
     <div class="flex-row flex-end buttons-gap">
-        <button type="button" class="btn btn-info" (click)="reset()">Reset</button>
-        <button type="submit" class="btn btn-primary">Filter</button>
+        <button type="button" class="btn-info" (click)="reset()">Reset</button>
+        <button type="submit" class="btn-primary">Filter</button>
     </div>
 </form>
 ```
@@ -162,14 +164,16 @@ For the full generated list (every size combination), see `references/utility-cl
 
 **Alert:**
 ```html
-<div class="alert alert-warning">Heads up.</div>
+<div class="alert-warning">Heads up.</div>
 ```
+
+> Both `<div class="alert-warning">` (v2.6.0+ single-class form) and the legacy `<div class="alert alert-warning">` produce the same result.
 
 **Toolbar:**
 ```html
 <div class="flex-row align-items-center column-gap-small padding-small highlight-block">
     <div class="flex-1 bold text-uppercase">Title</div>
-    <button class="btn btn-primary">Action</button>
+    <button class="btn-primary">Action</button>
 </div>
 ```
 
@@ -363,10 +367,20 @@ There are four levels of intervention; **always pick the highest-level one that 
    @include themes.css-blocks($blockTypes: ('highlight', 'primary', 'secondary', 'my-new'));
    @include themes.css-alerts($alertTypes: ('info', 'warning', 'success', 'danger', 'error', 'my-new'));
    ```
-   Then add the matching keys to the theme map so the CSS vars exist:
+
+   **For buttons (v2.6.0+):** each variant's `background`/`foreground` already defaults to `var(--theme-<variant>)` / `var(--theme-on<Variant>)`. So if you also add the matching semantic colors to the theme, no per-variant button map is needed:
    ```scss
    $appTheme: (
-       button: ( my-new: ( background: #..., foreground: #..., borderColor: ..., hover: (...), active: (...), onlyContent: (...) ) ),
+       theme: ( my-new: #6b46c1, onMyNew: #fff ),
+   );
+   ```
+   The `btn-my-new` class will then pick those colors up automatically. Only supply `button.my-new.*` explicitly when you need to override border, icon, hover/active, or the `onlyContent` state.
+
+   **For alerts and blocks:** the corresponding `--alert-<name>-*` / `--block-<name>-*` variables still need values, so add them to the theme map:
+   ```scss
+   $appTheme: (
+       alert: ( my-new: ( background: var(--theme-my-new), foreground: var(--theme-onMyNew), borderColor: var(--theme-my-new) ) ),
+       block: ( my-new: ( background: #f3eaff, foreground: #111, padding: var(--size-sm), borderRadius: var(--size-borderRadius-xs), scrollbar: #ccc ) ),
    );
    ```
 
