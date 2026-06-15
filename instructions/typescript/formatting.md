@@ -40,4 +40,3 @@
     - order properties in the following order: selector, templateUrl, template, styleUrl, styleUrls, styles, host, imports, providers, hostDirectives, changeDetection
     - order array properties values in the following order: from shortest to longest (e.g. in `imports` property, put items with shorter names first)
     - never use one line array or object literal for `imports`, `providers`, `host`
-    - always use `changeDetection: ChangeDetectionStrategy.OnPush`
