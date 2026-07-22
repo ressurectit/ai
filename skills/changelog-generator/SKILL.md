@@ -8,7 +8,8 @@ description: >-
   "add release notes", or otherwise wants to turn the current staged /
   working-directory state into changelog content — even if they don't name the
   file explicitly. Built for npm library projects that maintain a hand-written
-  changelog and publish to a registry.
+  changelog and publish to a registry — both code/TypeScript libraries and pure
+  CSS/SCSS (Sass) style libraries.
 ---
 
 # Changelog Generator
@@ -20,14 +21,18 @@ A changelog is read by humans deciding whether to upgrade, so it must describe
 *what changed on the public API and why it matters to a consumer of the
 library* — never a line-by-line restatement of the diff.
 
-Two principles override everything else:
+Three principles override everything else:
 
 1. **The format is fixed — it's specified in this document.** Don't re-derive it
    from the file on each run. Follow the "Entry format" section below. The only
-   thing to copy from the target file is its mechanical whitespace and line
-   endings (see step 7).
+   thing to copy from the target file is its indentation width (see step 5).
 2. **Only staged changes count.** Unstaged edits are intentionally ignored so
    the entry matches exactly the commit the user is about to make.
+3. **Two library flavors.** Code/TS libraries and pure CSS/SCSS libraries share
+   the same workflow, sections, ordering, and version logic, but differ in item
+   *kinds*, *grouping labels*, and bullet *phrasing*. Detect which from the
+   staged files and follow the matching conventions — "Change bullet shape" for
+   code, "CSS / SCSS libraries" for styles.
 
 ## Workflow
 
@@ -123,9 +128,11 @@ not yet released/tagged, and the user is regenerating after staging more changes
 
 Use `edit` so the rest of the file is untouched.
 
-Match the file's mechanical whitespace exactly: this project indents nested
-bullets with **3 spaces** for the first level and **6 spaces** for the second,
-and uses **CRLF** line endings. Preserve them; don't reformat older entries.
+Match the target file's existing **indentation width**: the ng-select code
+changelog nests with **3 spaces** per level (3, 6, …), while the CSS/SCSS
+changelogs use **4 spaces** per level (4, 8, …). Follow whatever the file already
+uses. Line endings (CRLF vs LF) don't matter — just keep the file consistent.
+Don't reformat older entries.
 
 If there is **no** changelog file, create one titled `# Changelog` and add this
 entry as the first one.
@@ -171,10 +178,11 @@ Emit only the sections that have content, always in this order:
   import path over the bare `name` field, and match how earlier entries wrote
   it.
 
-### Change bullet shape
+### Change bullet shape (code / TS libraries)
 
-Every code bullet follows: **keyword → item → kind → [description] → nested
-detail**.
+Every bullet follows: **keyword → item → kind → [description] → nested detail**.
+The kinds below are for **code/TS** libraries; for pure CSS/SCSS libraries use
+the "CSS / SCSS libraries" section instead.
 
 1. **keyword** — `new`, `updated`, `removed`, or `fixed`.
 2. **item** — the symbol, in backticks: `` `HighlightInstance` ``.
@@ -225,6 +233,81 @@ Free-form breaking bullets are fine too (e.g. `strict null checks`).
 
 ---
 
+## CSS / SCSS libraries
+
+When the staged public surface is `.scss` — mixins, functions, placeholders, css
+classes, scss variables (e.g. `@css-styles/common`, `@css-styles/themes`) — keep
+the same workflow, section order, and version logic, but swap in these
+conventions.
+
+### Item kinds
+
+- `mixin`, `function`
+- `placeholder` — a `%name` selector
+- `css class` — a `.name` selector
+- `scss variable`, `map`, `map scss variable`, `variable`
+
+Older entries italicise the kind (`*mixin*`, `*vars*`); the latest entries write
+it plain. Use plain.
+
+### Grouping labels
+
+Instead of member-type labels (`**properties**`, `**methods**`), CSS entries
+group bullets by **functional area**, using whatever groups the project already
+uses, e.g. `**misc**` (utility placeholders/classes), `**mixins**`, `**vars**`
+(scss variables), `**default theme**` (theme token changes). Direct top-level
+bullets (like new mixins) may come first, followed by grouped bullets. Only use a
+group when the project does.
+
+### Placeholder / css class pairing
+
+Utilities are usually documented as a **pair** — the placeholder and the class
+that consumes it — with the actual CSS declarations in backticks:
+
+```markdown
+- new `%align-items-start` placeholder for `align-items: start;` css properties
+- new `.align-items-start` css class for `align-items: start;` css properties
+```
+
+Multiple declarations are comma-separated, each in its own backticks:
+`` `flex: .25;`, `min-width: 0;`, `min-height: 0;` ``. Use *property* for a
+single declaration, *properties* for several. Aliases read: `` new
+`%white-space-normal` alias placeholder for `%content-wrap` ``.
+
+### Updated mixins / functions
+
+Put the effect on the same line (`` updated `misc-css` mixin, now generates also
+`--color-transparent` css variable ``) or as free-form nested bullets:
+
+```markdown
+- updated `buildSizes` mixin
+    - now also defines `--color-transparent` css variable
+```
+
+### Theme value changes (themes package)
+
+Under a `**default theme**` (or similar) group, describe token changes with these
+phrasings:
+
+- `` updated value for `theme.primary` to `$azure-500` ``
+- `` updated value for `button.primary.onlyContent.foreground` now redirects to `button.primary.foreground` ``
+- `` fixed value of `button.primary.onlyContent.icon`, now correctly redirects to `button.primary.onlyContent.foreground` ``
+
+### Breaking changes
+
+- `` removed `.file-upload.input-group` css class ``
+- `` renamed `buildSizes` mixin into `buildFixedSizes` ``
+- grouped removals name every symbol and point to the replacement — including
+  **cross-package** references:
+  ```markdown
+  - removed *round corners* css styles `border-round`, `top-border-round`
+      - use definition from `@css-styles/common@2.0.0`
+  ```
+- `` removed `negXsWidth`, `negSmWidth`, … scss variables `` (grouped removal)
+- `` removed `popup-block` css class, no replacement ``
+
+---
+
 ## Worked examples
 
 **New item with nested detail (Features):**
@@ -263,6 +346,23 @@ Free-form breaking bullets are fine too (e.g. `strict null checks`).
    - renamed to `SelectModule`
 ```
 
+**CSS/SCSS — utility pair + grouped (Features), 4-space indent:**
+
+```markdown
+- new `buildGapsCss` mixin, which allows generating css variables and classes for gaps
+- **misc**
+    - new `%align-items-start` placeholder for `align-items: start;` css properties
+    - new `.align-items-start` css class for `align-items: start;` css properties
+```
+
+**CSS/SCSS — breaking with cross-package replacement:**
+
+```markdown
+- removed *round corners* css styles `border-round`, `top-border-round`
+    - use definition from `@css-styles/common@2.0.0`
+- renamed `buildSizes` mixin into `buildFixedSizes`
+```
+
 ---
 
 ## Quality bar
@@ -276,7 +376,10 @@ Re-read the finished entry as a developer deciding whether to upgrade:
   section?
 - Each bullet follows keyword → item → kind → nested detail, with doc-comments
   copied (first letter lower-cased in nested detail)?
-- Code in backticks, concepts in italics, indentation and line endings matching
-  the file?
+- Code in backticks, concepts in italics, indentation width matching the file
+  (3-space for the code changelog, 4-space for CSS/SCSS)?
+- For CSS/SCSS: correct item kinds (mixin, placeholder, css class, scss
+  variable), functional-area grouping labels, and utility documented as a
+  placeholder + css class pair?
 
 Then report the version chosen and a one-line summary of what you added.
