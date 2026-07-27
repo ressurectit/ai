@@ -197,8 +197,16 @@ the "CSS / SCSS libraries" section instead.
    - `**properties**`, `**methods**`, `**values**` (enum members)
    - `**new properties**`, `**removed properties**` (on an `updated` item)
 
-   Under each label, list every relevant member. For a method or property, copy
-   its doc-comment as the description, **lower-casing the first letter**.
+   Under each label, list every relevant member — **except** methods and
+   properties that are purely implementations of an interface the item already
+   declares under `**implements**` (e.g. `destroy()` from `OnDestroy`,
+   `ngOnInit()` from `OnInit`, `writeValue()` from `ControlValueAccessor`). The
+   interface already signals these lifecycle/contract methods exist; listing them
+   again is noise. Only list methods and properties that are the item's own
+   public surface beyond the interface contract.
+
+   For a method or property, copy its doc-comment as the description,
+   **lower-casing the first letter**.
    - For `removed` items, a nested `use \`X\` instead` may point to the
      replacement.
    - For an `updated` item that was renamed, add nested detail `renamed to
@@ -376,6 +384,8 @@ Re-read the finished entry as a developer deciding whether to upgrade:
   section?
 - Each bullet follows keyword → item → kind → nested detail, with doc-comments
   copied (first letter lower-cased in nested detail)?
+- Interface implementation methods/properties excluded from nested `**methods**`
+  and `**properties**` (the `**implements**` label already signals them)?
 - Code in backticks, concepts in italics, indentation width matching the file
   (3-space for the code changelog, 4-space for CSS/SCSS)?
 - For CSS/SCSS: correct item kinds (mixin, placeholder, css class, scss
