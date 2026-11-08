@@ -20,7 +20,7 @@ import {getSearch, getSelectedOption, getSelectedOptions, getValue, setReadonly,
 | `getValue()` | `SelectFunction` | ValueHandler `value()` — `TPublicValue \| TPublicValue[] \| null`; `undefined` before init |
 | `setValue(value)` | `SelectAction` | `valueHandler.setValue(value)` (not awaited); ignored before init |
 | `getSearch()` | `SelectFunction` | LiveSearch `search()`; `''` before init |
-| `getSelectedOption()` | `SelectFunction` | selected `SelectOption` of a single select; **throws** when the select is multiple; `undefined` before init |
+| `getSelectedOption()` | `SelectFunction` | selected `SelectOption` (or `null`) of a single select; **throws** when `selectedOptions()` is an array (multiple select with a selection) — a multiple select with nothing selected (`null`) returns `null`; `undefined` before init |
 | `getSelectedOptions()` | `SelectFunction` | `SelectOption \| SelectOption[] \| null`; `undefined` before init |
 | `setReadonly(readonly = true)` | `SelectAction` | merges `{readonly}` into `selectOptions` (works before init) |
 

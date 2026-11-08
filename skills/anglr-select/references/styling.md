@@ -84,13 +84,13 @@ All visual aspects are driven by CSS custom properties. Here are the key ones:
 | `--select-normalState-borderColor` | `#666` | Border color |
 | `--select-normalState-background` | `#eee` | Background color |
 | `--select-normalState-foreground` | `#000` | Text color |
-| `--select-normalState-borderRadius` | `4px` | Corner rounding |
-| `--select-normalState-padding` | `1px 2px` | Inner padding |
+| `--select-normalState-borderRadius` | `var(--size-4px-fixed)` | Corner rounding |
+| `--select-normalState-padding` | `var(--size-1px) var(--size-2px)` | Inner padding |
 | `--select-normalState-focus-borderColor` | `#0066ff` | Focus border |
 | `--select-normalState-focus-outlineColor` | `#0066ff` | Focus outline |
 | `--select-normalState-tag-background` | `#ccc` | Multi-select tag background |
 | `--select-normalState-tag-foreground` | `#000` | Multi-select tag text |
-| `--select-normalState-disabled-background` | *(derived)* | Disabled background |
+| `--select-normalState-disabled-background` | `hsl(from var(--select-normalState-background) h s 95%)` | Disabled background |
 
 **Popup**
 
@@ -99,10 +99,10 @@ All visual aspects are driven by CSS custom properties. Here are the key ones:
 | `--select-popup-container-background` | `#F0F0F0` | Popup background |
 | `--select-popup-container-foreground` | `#000` | Popup text color |
 | `--select-popup-container-borderColor` | `#acacac` | Popup border |
-| `--select-popup-option-active-background` | *(derived from container)* | Hovered option |
-| `--select-popup-option-selected-background` | *(derived from container)* | Selected option |
+| `--select-popup-option-active-background` | `hsl(from var(--select-popup-container-background) h s 90%)` | Hovered / keyboard-active option |
+| `--select-popup-option-selected-background` | `hsl(from var(--select-popup-container-background) h s 82%)` | Selected option |
 | `--select-popup-option-searchHighlight-textDecoration` | `underline` | Decoration applied to `::highlight(search-query)` matches inside the popup |
-| `--select-popup-option-searchHighlight-textShadow` | `0 0 2px hsl(from currentColor h s 45%)` | Shadow applied to `::highlight(search-query)` matches inside the popup |
+| `--select-popup-option-searchHighlight-textShadow` | `0 0 var(--size-2px) hsl(from currentColor h s 45%)` | Shadow applied to `::highlight(search-query)` matches inside the popup |
 
 **Live Search**
 
@@ -246,17 +246,20 @@ each leaf becomes `--select-<path-joined-by-dash>`.
 
 | Group | Properties (light default where set) |
 | --- | --- |
-| normal state | `--select-normalState-borderColor` (#666), `-borderStyle` (solid), `-borderWidth`, `-background` (#eee), `-foreground` (#000), `-boxShadow`, `-padding`, `-borderRadius`, `-fontFamily`, `-fontSize`, `-letterSpacing`, `-gap` |
-| focus | `--select-normalState-focus-borderColor` (#0066ff), `-focus-outlineColor` (#0066ff), `-focus-outlineWidth` |
-| tags (multiple, edit) | `--select-normalState-tag-background` (#ccc), `-tag-foreground`, `-tag-gap`, `-tag-padding`, `-tag-borderRadius`, `-tag-fontSize` |
-| disabled/readonly | `--select-normalState-disabled-background`, `-disabled-foreground`, `-disabled-borderColor` (light: derived via `hsl(from …)`) |
-| popup container | `--select-popup-container-background` (#F0F0F0), `-foreground`, `-padding`, `-borderRadius`, `-borderColor` (#acacac), `-borderWidth`, `-borderStyle`, `-boxShadow` |
-| popup options | `--select-popup-option-padding`, `-borderRadius`, `-selected-background`, `-selected-backgroundImage`, `-active-background`, `-active-backgroundImage`, `-inGroup-margin`, `-searchHighlight-textDecoration` (underline), `-searchHighlight-textShadow` |
-| option groups | `--select-popup-optionGroup-fontStyle` (italic), `-letterSpacing`, `-fontWeight` (500) |
-| live search | `--select-liveSearch-placeholder-foreground`, `-placeholder-opacity`, `-placeholder-letterSpacing` |
+| normal state | `--select-normalState-borderColor` (#666), `-borderStyle` (solid), `-borderWidth` (var(--size-2px-fixed)), `-background` (#eee), `-foreground` (#000), `-boxShadow` (unset), `-padding` (var(--size-1px) var(--size-2px)), `-borderRadius` (var(--size-4px-fixed)), `-fontFamily` (inherit), `-fontSize` (inherit), `-letterSpacing` (normal), `-gap` (var(--size-xs)) |
+| focus | `--select-normalState-focus-borderColor` (#0066ff), `-focus-outlineColor` (#0066ff), `-focus-outlineWidth` (var(--size-1px-fixed)) |
+| tags (multiple, edit) | `--select-normalState-tag-background` (#ccc), `-tag-foreground` (#000), `-tag-gap` (var(--size-xs)), `-tag-padding` (var(--size-none) var(--size-xs)), `-tag-borderRadius` (var(--size-4px)), `-tag-fontSize` (.9em) |
+| disabled/readonly | `--select-normalState-disabled-background` (hsl(from var(--select-normalState-background) h s 95%)), `-disabled-foreground` (hsl(from var(--select-normalState-foreground) h s 50%)), `-disabled-borderColor` (hsl(from var(--select-normalState-borderColor) h s 75%)) |
+| popup container | `--select-popup-container-background` (#F0F0F0), `-foreground` (#000), `-padding` (getSize($fontSize, 4) = 4/14em ≈ 0.2857em), `-borderRadius` (same as padding), `-borderColor` (#acacac), `-borderWidth` (var(--size-1px-fixed)), `-borderStyle` (solid), `-boxShadow` (0 6px 12px rgba(0,0,0,.175)) |
+| popup options | `--select-popup-option-padding` (2/14em 4/14em), `-borderRadius` (2/14em), `-selected-background` (hsl(from var(--select-popup-container-background) h s 82%)), `-selected-backgroundImage` (none), `-active-background` (… h s 90%), `-active-backgroundImage` (none), `-inGroup-margin` (0 0 0 var(--size-sm, .5em)), `-searchHighlight-textDecoration` (underline), `-searchHighlight-textShadow` (0 0 var(--size-2px) hsl(from currentColor h s 45%)) |
+| option groups | `--select-popup-optionGroup-fontStyle` (italic), `-letterSpacing` (1px), `-fontWeight` (500) |
+| live search | `--select-liveSearch-placeholder-foreground` (#000), `-placeholder-opacity` (1), `-placeholder-letterSpacing` (normal) |
+
+Values in `em` are computed by `getSize($fontSize, n)` = `n / $fontSize` em (with the default `$fontSize: 14px`).
 
 Dark theme: normal state `#4a4a4a` background / `#f0f0f0` foreground / `#bbb`
-border, tag `#666`, popup `#3A3A3A` / `#4e4e4e` border.
+border, tag `#666` / `#f0f0f0`, popup `#3A3A3A` / `#f0f0f0` / `#4e4e4e` border, no popup
+`boxShadow` (unset), disabled colors `unset`, placeholder `#f0f0f0`; focus colors as light.
 
 ## CSS classes (defaults, override via plugin `cssClasses`)
 

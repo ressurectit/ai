@@ -6,11 +6,16 @@
  *
  * Usage:
  *   node package-api.mjs info <package-repo>
- *       Package name, resolved version (with its source), peer/optional deps, entry points.
+ *       Package name, resolved version (with its source), dependencies, entry points
+ *       (incl. entry points without .ts sources that need manual review), styles exports.
  *   node package-api.mjs inventory <package-repo> [--json]
  *       Every public export of every entry point, grouped by entry point and kind.
  *   node package-api.mjs coverage <package-repo> <skill-dir> [--json]
- *       Which public exports are mentioned (as whole words) anywhere in the skill's files.
+ *       Which public exports are mentioned in the skill's files (by name, or by a selector /
+ *       pipe name unique to that class), plus structural skill checks.
+ *
+ * Environment:
+ *   SKIP_NPM=1   don't query `npm view` (offline use, faster)
  *
  * Only node built-ins are used, no build of the package is needed (source .ts is parsed with regexes).
  */
@@ -18,17 +23,38 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {execSync} from 'node:child_process';
+import {pathToFileURL} from 'node:url';
 
-const IGNORED_DIRS = new Set(['node_modules', 'demo', 'src', 'styles', 'docs', 'temp', 'es2015', 'es2020', 'es2022', 'typings', '.git']);
+const IGNORED_DIRS = new Set(['node_modules', 'demo', 'src', 'styles', 'docs', 'temp', 'es2015', 'es2020', 'es2022', 'es5', 'es', 'module', 'typings', '.git']);
+
+/**
+ * Attribute / element names that are shared by many directives (Angular forms, router, html) - never treated as unique alias.
+ */
+const GENERIC_SELECTOR_NAMES = new Set(
+[
+    'div', 'span', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'input', 'button', 'select', 'textarea', 'form', 'a', 'img', 'ul', 'li', 'label',
+    'ng-container', 'ng-template', 'ng-content',
+    'formControl', 'formControlName', 'formGroup', 'formGroupName', 'formArray', 'formArrayName', 'ngModel', 'ngForm', 'formField',
+    'routerLink', 'type', 'name', 'value', 'data', 'disabled', 'readonly', 'required', 'id', 'class', 'style', 'title',
+]);
 
 //######################### helpers #########################
+
+/**
+ * Reads text file with normalized line endings.
+ * @param {string} file
+ */
+export function readText(file)
+{
+    return fs.readFileSync(file, 'utf8').replace(/\r\n?/g, '\n');
+}
 
 /**
  * @param {string} file
  */
 function readJson(file)
 {
-    return JSON.parse(fs.readFileSync(file, 'utf8'));
+    return JSON.parse(readText(file));
 }
 
 /**
@@ -48,41 +74,60 @@ function tryExec(cmd, cwd)
 }
 
 /**
+ * @param {string|null} text
+ */
+function lines(text)
+{
+    return text ? text.split('\n').filter(Boolean) : [];
+}
+
+/**
  * Resolves version of package. RessurectIT repos keep `0.0.0-placeholder` in package.json and version comes from git tags.
  * @param {string} repo
  * @param {any} pkg
  */
-function resolveVersion(repo, pkg)
+export function resolveVersion(repo, pkg)
 {
-    const result = {version: /** @type {string|null} */(null), source: '', gitDescribe: tryExec('git describe --tags', repo), changelogTop: /** @type {string|null} */(null), npmLatest: /** @type {string|null} */(null), notes: /** @type {string[]} */([])};
+    const nearestTag = tryExec('git describe --tags --abbrev=0', repo);
+    const latestTag = lines(tryExec('git tag --list "v*" --sort=-v:refname', repo))[0] ?? null;
+
+    const result =
+    {
+        version: /** @type {string|null} */(null),
+        source: '',
+        gitDescribe: tryExec('git describe --tags --dirty', repo),
+        nearestTag,
+        latestTag,
+        changelogTop: /** @type {string|null} */(null),
+        npmLatest: /** @type {string|null} */(null),
+        changedSinceTag: /** @type {string[]} */([]),
+        uncommitted: lines(tryExec('git status --short', repo)),
+        notes: /** @type {string[]} */([]),
+    };
 
     const changelogFile = ['changelog.md', 'CHANGELOG.md'].map(f => path.join(repo, f)).find(f => fs.existsSync(f));
 
     if(changelogFile)
     {
-        const match = fs.readFileSync(changelogFile, 'utf8').match(/^##\s+Version\s+([^\s(]+)/mi);
-        result.changelogTop = match?.[1] ?? null;
+        result.changelogTop = readText(changelogFile).match(/^##\s+Version\s+([^\s(]+)/mi)?.[1] ?? null;
     }
+
+    const tag = latestTag ?? nearestTag;
 
     if(pkg.version && !/placeholder/.test(pkg.version))
     {
         result.version = pkg.version;
         result.source = 'package.json';
     }
-    else
+    else if(tag)
     {
-        const tag = tryExec('git describe --tags --abbrev=0', repo);
-
-        if(tag)
-        {
-            result.version = tag.replace(/^v/, '');
-            result.source = `git tag ${tag}`;
-        }
-        else if(result.changelogTop)
-        {
-            result.version = result.changelogTop;
-            result.source = 'changelog.md';
-        }
+        result.version = tag.replace(/^v/, '');
+        result.source = `git tag ${tag}${latestTag && latestTag !== nearestTag ? ' (latest v* tag)' : ''}`;
+    }
+    else if(result.changelogTop)
+    {
+        result.version = result.changelogTop;
+        result.source = 'changelog.md';
     }
 
     if(process.env.SKIP_NPM !== '1')
@@ -90,14 +135,24 @@ function resolveVersion(repo, pkg)
         result.npmLatest = tryExec(`npm view ${pkg.name} version`, repo);
     }
 
-    if(result.gitDescribe && result.version && !new RegExp(`^v?${result.version.replace(/\./g, '\\.')}$`).test(result.gitDescribe))
+    if(latestTag && nearestTag && latestTag !== nearestTag)
     {
-        result.notes.push(`HEAD is past the tag (${result.gitDescribe}) - see changedSinceTag; docs-only changes are usually safe to use.`);
-        const tag = tryExec('git describe --tags --abbrev=0', repo);
-        const changed = tag ? tryExec(`git diff --name-only ${tag}..HEAD`, repo) : null;
-        const uncommitted = tryExec('git status --short', repo);
-        /** @type {any} */(result).changedSinceTag = changed ? changed.split('\n') : [];
-        /** @type {any} */(result).uncommitted = uncommitted ? uncommitted.split('\n') : [];
+        result.notes.push(`Nearest tag from HEAD is ${nearestTag} but the latest v* tag is ${latestTag} - HEAD may be on an older line; the working tree may not match ${latestTag}.`);
+    }
+
+    if(tag)
+    {
+        result.changedSinceTag = lines(tryExec(`git diff --name-only ${tag}..HEAD`, repo));
+
+        if(result.changedSinceTag.length)
+        {
+            result.notes.push(`HEAD differs from ${tag} in ${result.changedSinceTag.length} file(s) - see changedSinceTag; docs-only changes are usually safe to use.`);
+        }
+    }
+
+    if(result.uncommitted.length)
+    {
+        result.notes.push(`Working tree has ${result.uncommitted.length} uncommitted change(s) - see uncommitted.`);
     }
 
     if(result.changelogTop && result.version && result.changelogTop !== result.version)
@@ -114,20 +169,79 @@ function resolveVersion(repo, pkg)
 }
 
 /**
- * Finds entry points: root `src/index.ts` and every sub directory with package.json + src/index.ts.
+ * Finds .ts index file of entry point directory (relative to repo).
  * @param {string} repo
- * @param {string} name
+ * @param {string} sub
  */
-function findEntryPoints(repo, name)
+function findTsIndex(repo, sub)
 {
-    /** @type {{importPath: string, index: string}[]} */
-    const entries = [];
+    return ['src/index.ts', 'index.ts', 'src/public-api.ts', 'public-api.ts']
+        .map(f => path.join(repo, sub, f))
+        .find(f => fs.existsSync(f)) ?? null;
+}
 
-    const rootIndex = ['src/index.ts', 'index.ts', 'src/public-api.ts', 'public-api.ts'].map(f => path.join(repo, f)).find(f => fs.existsSync(f));
+/**
+ * Finds entry points from package.json#exports and from sub directories with own package.json.
+ * Entry points without .ts sources and styles/wildcard exports are returned separately for manual review.
+ * @param {string} repo
+ * @param {any} pkg
+ */
+export function findEntryPoints(repo, pkg)
+{
+    /** @type {Map<string, {importPath: string, index: string}>} */
+    const entries = new Map();
+    /** @type {{importPath: string, reason: string}[]} */
+    const manual = [];
+    /** @type {string[]} */
+    const styles = [];
 
-    if(rootIndex)
+    const add = (/** @type {string} */ sub) =>
     {
-        entries.push({importPath: name, index: rootIndex});
+        const importPath = sub ? `${pkg.name}/${sub}` : pkg.name;
+
+        if(entries.has(importPath) || manual.some(m => m.importPath === importPath))
+        {
+            return;
+        }
+
+        const index = findTsIndex(repo, sub);
+
+        if(index)
+        {
+            entries.set(importPath, {importPath, index});
+        }
+        else
+        {
+            const jsIndex = ['src/index.js', 'index.js', 'src/index.d.ts'].map(f => path.join(sub, f)).find(f => fs.existsSync(path.join(repo, f)));
+            manual.push({importPath, reason: jsIndex ? `no .ts source index (found ${jsIndex}) - review manually` : 'no source index found - review manually'});
+        }
+    };
+
+    if(pkg.exports && typeof pkg.exports === 'object' && !Array.isArray(pkg.exports))
+    {
+        for(const key of Object.keys(pkg.exports))
+        {
+            if(key === './package.json')
+            {
+                continue;
+            }
+
+            if(key.includes('*') || /^\.\/(styles|typings)(\/|$)/.test(key))
+            {
+                if(!key.startsWith('./typings'))
+                {
+                    styles.push(`${pkg.name}${key.slice(1)}`);
+                }
+
+                continue;
+            }
+
+            add(key === '.' ? '' : key.replace(/^\.\//, ''));
+        }
+    }
+    else
+    {
+        add('');
     }
 
     for(const dir of fs.readdirSync(repo, {withFileTypes: true}))
@@ -137,16 +251,18 @@ function findEntryPoints(repo, name)
             continue;
         }
 
-        const subRoot = path.join(repo, dir.name);
-        const index = ['src/index.ts', 'index.ts', 'src/public-api.ts'].map(f => path.join(subRoot, f)).find(f => fs.existsSync(f));
-
-        if(index && fs.existsSync(path.join(subRoot, 'package.json')))
+        if(fs.existsSync(path.join(repo, dir.name, 'package.json')))
         {
-            entries.push({importPath: `${name}/${dir.name}`, index});
+            add(dir.name);
         }
     }
 
-    return entries;
+    if(!pkg.exports && fs.existsSync(path.join(repo, 'styles')))
+    {
+        styles.push(`${pkg.name}/styles`);
+    }
+
+    return {entries: [...entries.values()], manual, styles};
 }
 
 /**
@@ -161,22 +277,44 @@ function resolveModule(fromFile, spec)
     return candidates.find(c => fs.existsSync(c) && fs.statSync(c).isFile()) ?? null;
 }
 
+/** @type {Map<string, Map<string, {kind: string, file: string}>>} */
+const exportsCache = new Map();
+const DECLARATION = /export\s+(?:declare\s+)?(?:default\s+)?(?:abstract\s+)?(?:async\s+)?(class|interface|type|enum|function\*?|const\s+enum|const|let|var)\s+([A-Za-z_$][\w$]*)/g;
+
 /**
- * Collects exported symbols from file, following relative re-exports.
- * @param {string} file
- * @param {Map<string, {kind: string, file: string}>} out
- * @param {Set<string>} visited
+ * @param {string} kind
  */
-function collectExports(file, out, visited)
+function normalizeKind(kind)
 {
-    if(visited.has(file))
+    return kind.replace(/\s+/g, ' ').replace('*', '');
+}
+
+/**
+ * Returns exported symbols of file (following relative re-exports) with kind and file of their real declaration.
+ * @param {string} file
+ * @param {Set<string>} [stack] files currently being processed (cycle guard)
+ * @returns {Map<string, {kind: string, file: string}>}
+ */
+export function exportsOf(file, stack = new Set())
+{
+    const cached = exportsCache.get(file);
+
+    if(cached)
     {
-        return;
+        return cached;
     }
 
-    visited.add(file);
+    /** @type {Map<string, {kind: string, file: string}>} */
+    const out = new Map();
 
-    const source = fs.readFileSync(file, 'utf8')
+    if(stack.has(file))
+    {
+        return out;
+    }
+
+    stack.add(file);
+
+    const source = readText(file)
         .replace(/\/\*[\s\S]*?\*\//g, '')
         .replace(/^\s*\/\/.*$/gm, '');
 
@@ -189,13 +327,13 @@ function collectExports(file, out, visited)
             continue;
         }
 
-        if(match[2].startsWith('.'))
-        {
-            const resolved = resolveModule(file, match[2]);
+        const resolved = match[2].startsWith('.') ? resolveModule(file, match[2]) : null;
 
-            if(resolved)
+        if(resolved)
+        {
+            for(const [name, info] of exportsOf(resolved, stack))
             {
-                collectExports(resolved, out, visited);
+                out.set(name, info);
             }
         }
     }
@@ -203,6 +341,9 @@ function collectExports(file, out, visited)
     //export {a, b as c} from './x'; export {a, b}; export type {X}
     for(const match of source.matchAll(/export\s+(type\s+)?\{([^}]*)\}\s*(?:from\s*['"]([^'"]+)['"])?/g))
     {
+        const resolved = match[3]?.startsWith('.') ? resolveModule(file, match[3]) : null;
+        const target = resolved ? exportsOf(resolved, stack) : null;
+
         for(const part of match[2].split(','))
         {
             const cleaned = part.trim().replace(/^type\s+/, '');
@@ -212,128 +353,214 @@ function collectExports(file, out, visited)
                 continue;
             }
 
-            const exportedName = cleaned.split(/\s+as\s+/).pop()?.trim();
+            const [localName, exportedName = localName] = cleaned.split(/\s+as\s+/).map(s => s.trim());
 
-            if(exportedName && exportedName !== 'default')
+            if(exportedName === 'default')
             {
-                out.set(exportedName, {kind: match[1] ? 'type' : 're-export', file});
+                continue;
             }
+
+            let info = target?.get(localName) ?? null;
+
+            //local `export {a}` - find declaration in the same file
+            if(!info && !match[3])
+            {
+                const local = source.match(new RegExp(`(?:^|\\s)(?:declare\\s+)?(?:abstract\\s+)?(class|interface|type|enum|function|const|let|var)\\s+${localName.replace(/\$/g, '\\$')}\\b`));
+                info = local ? {kind: normalizeKind(local[1]), file} : null;
+            }
+
+            out.set(exportedName, info ?? {kind: match[1] ? 'type' : 're-export', file: resolved ?? file});
         }
     }
 
-    //export [declare] [abstract] class|interface|type|enum|function|const|let|var Name
-    for(const match of source.matchAll(/export\s+(?:declare\s+)?(?:default\s+)?(?:abstract\s+)?(?:async\s+)?(class|interface|type|enum|function\*?|const\s+enum|const|let|var)\s+([A-Za-z_$][\w$]*)/g))
+    for(const match of source.matchAll(DECLARATION))
     {
-        out.set(match[2], {kind: match[1].replace(/\s+/g, ' ').replace('*', ''), file});
+        out.set(match[2], {kind: normalizeKind(match[1]), file});
     }
+
+    stack.delete(file);
+    exportsCache.set(file, out);
+
+    return out;
 }
 
 /**
- * Extracts template-facing names (selectors, pipe names) of class declared in file, so symbol used only by selector counts as covered.
- * @param {string} repo
- * @param {string} file
+ * Extracts template-facing names (selector names, pipe name) of class declared in file.
+ * @param {string} file absolute path
  * @param {string} className
  * @returns {string[]}
  */
-function templateAliases(repo, file, className)
+export function templateNames(file, className)
 {
-    const source = fs.readFileSync(path.join(repo, file), 'utf8');
-    const classIndex = source.search(new RegExp(`class\\s+${className}\\b`));
+    const source = readText(file);
+    const classIndex = source.search(new RegExp(`class\\s+${className.replace(/\$/g, '\\$')}\\b`));
 
     if(classIndex < 0)
     {
         return [];
     }
 
-    //decorator closest before class declaration
     const before = source.slice(0, classIndex);
     const decoratorStart = Math.max(before.lastIndexOf('@Component('), before.lastIndexOf('@Directive('), before.lastIndexOf('@Pipe('));
 
-    if(decoratorStart < 0)
+    //decorator must belong to this class - no other class declaration in between
+    if(decoratorStart < 0 || /\bclass\s+[A-Za-z_$]/.test(before.slice(decoratorStart)))
     {
         return [];
     }
 
     const decorator = before.slice(decoratorStart);
-    const aliases = [];
+    /** @type {string[]} */
+    const names = [];
     const selector = decorator.match(/selector\s*:\s*['"`]([^'"`]+)['"`]/)?.[1];
-    const pipeName = decorator.match(/name\s*:\s*['"`]([^'"`]+)['"`]/)?.[1];
 
     if(selector)
     {
         for(const part of selector.split(','))
         {
-            //take attribute/element names, e.g. 'div[ngGrid][data]' -> ngGrid, data; prefer first meaningful
-            const names = [...part.matchAll(/\[([\w-]+)[^\]]*\]|^([\w-]+)/g)].map(m => m[1] ?? m[2]).filter(n => n && !['div', 'span', 'table', 'input', 'button', 'ng-container', 'ng-template'].includes(n));
-            aliases.push(...names);
+            for(const m of part.trim().matchAll(/\[([\w-]+)[^\]]*\]|^([\w-]+)|:not\([^)]*\)/g))
+            {
+                const name = m[1] ?? m[2];
+
+                if(name)
+                {
+                    names.push(name);
+                }
+            }
         }
     }
 
-    if(pipeName && decoratorStart === before.lastIndexOf('@Pipe('))
+    if(decoratorStart === before.lastIndexOf('@Pipe('))
     {
-        aliases.push(pipeName);
+        const pipeName = decorator.match(/name\s*:\s*['"`]([^'"`]+)['"`]/)?.[1];
+
+        if(pipeName)
+        {
+            names.push(pipeName);
+        }
     }
 
-    return [...new Set(aliases)];
+    return [...new Set(names)];
 }
 
 /**
  * @param {string} repo
  */
-function inventory(repo)
+export function inventory(repo)
 {
     const pkg = readJson(path.join(repo, 'package.json'));
+    const {entries} = findEntryPoints(repo, pkg);
 
-    return findEntryPoints(repo, pkg.name).map(entry =>
+    return entries.map(entry => (
     {
-        /** @type {Map<string, {kind: string, file: string}>} */
-        const symbols = new Map();
-        collectExports(entry.index, symbols, new Set());
-
-        return {
-            importPath: entry.importPath,
-            index: path.relative(repo, entry.index),
-            symbols: [...symbols.entries()]
-                .map(([symbol, info]) => ({name: symbol, kind: info.kind, file: path.relative(repo, info.file)}))
-                .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name)),
-        };
-    });
+        importPath: entry.importPath,
+        index: path.relative(repo, entry.index),
+        symbols: [...exportsOf(entry.index).entries()]
+            .map(([symbol, info]) => ({name: symbol, kind: info.kind, file: path.relative(repo, info.file)}))
+            .sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name)),
+    }));
 }
 
 /**
+ * Lists bundled text files of skill (recursively), skipping evals and workspaces.
  * @param {string} dir
- * @returns {string}
+ * @returns {string[]}
  */
-function readAllText(dir)
+function skillFiles(dir)
 {
-    let text = '';
-
-    for(const entry of fs.readdirSync(dir, {withFileTypes: true}))
+    return fs.readdirSync(dir, {withFileTypes: true}).flatMap(entry =>
     {
         const full = path.join(dir, entry.name);
 
         if(entry.isDirectory())
         {
-            if(entry.name !== 'node_modules' && !entry.name.endsWith('-workspace') && entry.name !== 'evals')
-            {
-                text += readAllText(full);
-            }
+            return entry.name === 'node_modules' || entry.name === 'evals' || entry.name.endsWith('-workspace') ? [] : skillFiles(full);
         }
-        else if(/\.(md|ts|html|scss|css|json|txt)$/.test(entry.name))
-        {
-            text += `\n${fs.readFileSync(full, 'utf8')}`;
-        }
-    }
 
-    return text;
+        return /\.(md|ts|html|scss|css|json|txt|mjs|js|sh)$/.test(entry.name) ? [full] : [];
+    });
 }
 
 /**
- * Structural checks of generated skill: frontmatter, sizes, contents lists.
+ * @param {string} name
+ */
+function wordRegExp(name)
+{
+    return new RegExp(`(^|[^\\w$-])${name.replace(/[$.*+?^()[\]{}|\\]/g, '\\$&')}([^\\w$-]|$)`);
+}
+
+/**
+ * Coverage of public exports by skill text.
+ * @param {string} repo
+ * @param {string} skillDir
+ */
+export function coverage(repo, skillDir)
+{
+    const text = skillFiles(skillDir).filter(f => !/\.(mjs|js|sh)$/.test(f)).map(readText).join('\n');
+    const entries = inventory(repo);
+
+    //template names used by exactly one class in whole package are usable aliases
+    /** @type {Map<string, Set<string>>} */
+    const owners = new Map();
+    /** @type {Map<string, string[]>} */
+    const namesOf = new Map();
+
+    for(const symbol of entries.flatMap(e => e.symbols))
+    {
+        if(symbol.kind !== 'class' || namesOf.has(symbol.name))
+        {
+            continue;
+        }
+
+        const names = templateNames(path.join(repo, symbol.file), symbol.name);
+        namesOf.set(symbol.name, names);
+
+        for(const name of names)
+        {
+            (owners.get(name) ?? owners.set(name, new Set()).get(name))?.add(symbol.name);
+        }
+    }
+
+    return entries.map(entry =>
+    {
+        /** @type {{name: string, kind: string, file: string}[]} */
+        const missing = [];
+        /** @type {{name: string, via: string}[]} */
+        const viaSelector = [];
+        let byName = 0;
+
+        for(const symbol of entry.symbols)
+        {
+            if(wordRegExp(symbol.name).test(text))
+            {
+                byName++;
+                continue;
+            }
+
+            const alias = (namesOf.get(symbol.name) ?? [])
+                .filter(n => !GENERIC_SELECTOR_NAMES.has(n) && owners.get(n)?.size === 1)
+                .find(n => wordRegExp(n).test(text));
+
+            if(alias)
+            {
+                viaSelector.push({name: symbol.name, via: alias});
+            }
+            else
+            {
+                missing.push(symbol);
+            }
+        }
+
+        return {importPath: entry.importPath, total: entry.symbols.length, byName, viaSelector, missing};
+    });
+}
+
+/**
+ * Structural checks of generated skill: frontmatter, sizes, contents lists, pointers.
  * @param {string} skillDir
  * @returns {string[]}
  */
-function skillChecks(skillDir)
+export function skillChecks(skillDir)
 {
     const problems = [];
     const skillFile = path.join(skillDir, 'SKILL.md');
@@ -343,7 +570,7 @@ function skillChecks(skillDir)
         return ['SKILL.md not found'];
     }
 
-    const skill = fs.readFileSync(skillFile, 'utf8');
+    const skill = readText(skillFile);
     const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/)?.[1];
 
     if(!frontmatter)
@@ -365,7 +592,7 @@ function skillChecks(skillDir)
             problems.push(`SKILL.md: description has ${description.length} chars (limit 1024)`);
         }
 
-        if(!/^\s+version:\s*['"]?\d/m.test(frontmatter))
+        if(!/^metadata:\s*\n(?:[ \t]+.*\n)*?[ \t]+version:\s*['"]?\d/m.test(`${frontmatter}\n`))
         {
             problems.push('SKILL.md: missing metadata.version in frontmatter');
         }
@@ -376,74 +603,64 @@ function skillChecks(skillDir)
         problems.push('SKILL.md: missing "Created for **<package> v<version>**" line');
     }
 
-    const lines = skill.trimEnd().split('\n').length;
+    const lineCount = skill.trimEnd().split('\n').length;
 
-    if(lines > 200)
+    if(lineCount > 200)
     {
-        problems.push(`SKILL.md: ${lines} lines - move details to references (aim for <=200)`);
+        problems.push(`SKILL.md: ${lineCount} lines - move details to references (aim for <=200)`);
     }
 
-    //pointers: every cited bundled file exists, every bundled file is reachable from SKILL.md
-    const allText = readAllText(skillDir);
+    const files = skillFiles(skillDir);
+    const texts = new Map(files.map(f => [f, readText(f)]));
 
-    for(const cited of new Set([...allText.matchAll(/\b((?:references|assets|scripts)\/[\w./-]+\.\w+)/g)].map(m => m[1])))
+    for(const [file, content] of texts)
     {
-        if(!fs.existsSync(path.join(skillDir, cited)) && !cited.includes('<'))
-        {
-            problems.push(`broken pointer: ${cited} does not exist`);
-        }
-    }
-
-    for(const sub of ['references', 'assets', 'scripts'])
-    {
-        const subDir = path.join(skillDir, sub);
-
-        if(!fs.existsSync(subDir))
+        if(!file.endsWith('.md'))
         {
             continue;
         }
 
-        for(const name of fs.readdirSync(subDir))
-        {
-            if(!skill.includes(`${sub}/${name}`))
-            {
-                problems.push(`${sub}/${name} is not referenced from SKILL.md`);
-            }
-        }
-    }
-
-    /**
-     * @param {string} dir
-     * @returns {string[]}
-     */
-    const mdFiles = dir => fs.readdirSync(dir, {withFileTypes: true}).flatMap(e =>
-    {
-        const full = path.join(dir, e.name);
-
-        if(e.isDirectory())
-        {
-            return e.name === 'evals' || e.name.endsWith('-workspace') ? [] : mdFiles(full);
-        }
-
-        return e.name.endsWith('.md') ? [full] : [];
-    });
-
-    for(const file of mdFiles(skillDir))
-    {
-        const rel = path.relative(skillDir, file);
-        const content = fs.readFileSync(file, 'utf8').replace(/^---\n[\s\S]*?\n---\n/, '');
-        const fileLines = content.split('\n').length;
-        //first level-2 heading must be Contents (ToC at start)
-        const firstH2 = content.match(/^##\s+(.*)$/m)?.[1]?.trim();
+        const rel = path.relative(skillDir, file).split(path.sep).join('/');
+        const body = content.replace(/^---\n[\s\S]*?\n---\n/, '');
+        const firstH2 = body.match(/^##\s+(.*)$/m)?.[1]?.trim();
 
         if(!firstH2 || !/^(contents|table of contents)$/i.test(firstH2))
         {
             problems.push(`${rel}: first "##" section should be "## Contents" (ToC at start)`);
         }
 
-        if(rel.startsWith('references') && fileLines > 500)
+        if(rel !== 'SKILL.md' && body.split('\n').length > 500)
         {
-            problems.push(`${rel}: ${fileLines} lines - consider splitting by area`);
+            problems.push(`${rel}: ${body.split('\n').length} lines - consider splitting by area`);
+        }
+    }
+
+    //pointers: every bundled file path cited in markdown exists (placeholders like `x-<area>.md` and directory mentions skipped)
+    const mdText = [...texts.entries()].filter(([f]) => f.endsWith('.md')).map(([, t]) => t).join('\n');
+
+    for(const cited of new Set([...mdText.matchAll(/(?<![\w/.-])((?:references|assets|scripts)\/[\w./-]*\.[a-z]+)(?![\w<-])/g)].map(m => m[1])))
+    {
+        if(!fs.existsSync(path.join(skillDir, cited)))
+        {
+            problems.push(`broken pointer: ${cited} does not exist`);
+        }
+    }
+
+    //every bundled file is reachable: referenced from some other skill file
+    for(const file of files)
+    {
+        const rel = path.relative(skillDir, file).split(path.sep).join('/');
+
+        if(rel === 'SKILL.md' || !/^(references|assets|scripts)\//.test(rel))
+        {
+            continue;
+        }
+
+        const referenced = [...texts.entries()].some(([other, content]) => other !== file && content.includes(rel));
+
+        if(!referenced)
+        {
+            problems.push(`${rel} is not referenced from SKILL.md or any other skill file`);
         }
     }
 
@@ -452,53 +669,65 @@ function skillChecks(skillDir)
 
 //######################### commands #########################
 
-const [command, repoArg, thirdArg] = process.argv.slice(2);
-const json = process.argv.includes('--json');
-
-if(!command || !repoArg || !['info', 'inventory', 'coverage'].includes(command))
+/**
+ * @param {string[]} argv
+ */
+export function main(argv)
 {
-    console.error('Usage: node package-api.mjs <info|inventory|coverage> <package-repo> [skill-dir] [--json]');
-    process.exit(1);
-}
+    const positional = argv.filter(a => !a.startsWith('--'));
+    const json = argv.includes('--json');
+    const [command, repoArg, skillArg] = positional;
 
-const repo = path.resolve(repoArg);
-
-if(!fs.existsSync(path.join(repo, 'package.json')))
-{
-    console.error(`No package.json in ${repo}`);
-    process.exit(1);
-}
-
-if(command === 'info')
-{
-    const pkg = readJson(path.join(repo, 'package.json'));
-    const info =
+    if(!command || !repoArg || !['info', 'inventory', 'coverage'].includes(command))
     {
-        name: pkg.name,
-        description: pkg.description,
-        version: resolveVersion(repo, pkg),
-        dependencies: pkg.dependencies ?? {},
-        peerDependencies: pkg.peerDependencies ?? {},
-        optionalDependencies: pkg.optionalDependencies ?? {},
-        entryPoints: findEntryPoints(repo, pkg.name).map(e => ({importPath: e.importPath, index: path.relative(repo, e.index)})),
-        hasReadme: ['readme.md', 'README.md'].find(f => fs.existsSync(path.join(repo, f))) ?? null,
-        hasChangelog: ['changelog.md', 'CHANGELOG.md'].find(f => fs.existsSync(path.join(repo, f))) ?? null,
-        hasStyles: fs.existsSync(path.join(repo, 'styles')),
-        hasDemo: fs.existsSync(path.join(repo, 'demo')),
-    };
-
-    console.log(JSON.stringify(info, null, 4));
-}
-else if(command === 'inventory')
-{
-    const result = inventory(repo);
-
-    if(json)
-    {
-        console.log(JSON.stringify(result, null, 4));
+        console.error('Usage: node package-api.mjs <info|inventory|coverage> <package-repo> [skill-dir] [--json]   (SKIP_NPM=1 to skip npm)');
+        return 1;
     }
-    else
+
+    const repo = path.resolve(repoArg);
+
+    if(!fs.existsSync(path.join(repo, 'package.json')))
     {
+        console.error(`No package.json in ${repo}`);
+        return 1;
+    }
+
+    if(command === 'info')
+    {
+        const pkg = readJson(path.join(repo, 'package.json'));
+        const {entries, manual, styles} = findEntryPoints(repo, pkg);
+
+        console.log(JSON.stringify(
+        {
+            name: pkg.name,
+            description: pkg.description,
+            version: resolveVersion(repo, pkg),
+            dependencies: pkg.dependencies ?? {},
+            peerDependencies: pkg.peerDependencies ?? {},
+            optionalDependencies: pkg.optionalDependencies ?? {},
+            entryPoints: entries.map(e => ({importPath: e.importPath, index: path.relative(repo, e.index)})),
+            entryPointsForManualReview: manual,
+            stylesExports: styles,
+            hasReadme: ['readme.md', 'README.md'].find(f => fs.existsSync(path.join(repo, f))) ?? null,
+            hasChangelog: ['changelog.md', 'CHANGELOG.md'].find(f => fs.existsSync(path.join(repo, f))) ?? null,
+            hasStyles: fs.existsSync(path.join(repo, 'styles')),
+            hasDemo: fs.existsSync(path.join(repo, 'demo')),
+        }, null, 4));
+
+        return 0;
+    }
+
+    if(command === 'inventory')
+    {
+        const result = inventory(repo);
+        const {manual} = findEntryPoints(repo, readJson(path.join(repo, 'package.json')));
+
+        if(json)
+        {
+            console.log(JSON.stringify({entryPoints: result, entryPointsForManualReview: manual}, null, 4));
+            return 0;
+        }
+
         for(const entry of result)
         {
             console.log(`\n## ${entry.importPath}  (${entry.symbols.length} exports, ${entry.index})`);
@@ -516,52 +745,63 @@ else if(command === 'inventory')
                 console.log(`- ${kind} (${names.length}): ${names.join(', ')}`);
             }
         }
+
+        for(const m of manual)
+        {
+            console.log(`\n## ${m.importPath}  MANUAL REVIEW: ${m.reason}`);
+        }
+
+        return 0;
     }
-}
-else
-{
-    if(!thirdArg || !fs.existsSync(thirdArg))
+
+    if(!skillArg || !fs.existsSync(skillArg))
     {
         console.error('coverage needs an existing <skill-dir>');
-        process.exit(1);
+        return 1;
     }
 
-    const text = readAllText(path.resolve(thirdArg));
-    const result = inventory(repo).map(entry =>
-    {
-        const mentioned = (/** @type {string} */ name) => new RegExp(`(^|[^\\w$-])${name.replace(/\$/g, '\\$')}([^\\w$-]|$)`).test(text);
-        const missing = entry.symbols.filter(s => !mentioned(s.name) && !(s.kind === 'class' && templateAliases(repo, s.file, s.name).some(mentioned)));
-
-        return {
-            importPath: entry.importPath,
-            total: entry.symbols.length,
-            covered: entry.symbols.length - missing.length,
-            missing: missing.map(m => ({name: m.name, kind: m.kind, file: m.file})),
-        };
-    });
+    const skillDir = path.resolve(skillArg);
+    const result = coverage(repo, skillDir);
+    const checks = skillChecks(skillDir);
+    const {manual} = findEntryPoints(repo, readJson(path.join(repo, 'package.json')));
 
     if(json)
     {
-        console.log(JSON.stringify({entryPoints: result, skillChecks: skillChecks(path.resolve(thirdArg))}, null, 4));
+        console.log(JSON.stringify({entryPoints: result, entryPointsForManualReview: manual, skillChecks: checks}, null, 4));
+        return 0;
     }
-    else
+
+    for(const entry of result)
     {
-        for(const entry of result)
-        {
-            console.log(`\n## ${entry.importPath}: ${entry.covered}/${entry.total} exports mentioned`);
+        console.log(`\n## ${entry.importPath}: ${entry.byName + entry.viaSelector.length}/${entry.total} exports mentioned (${entry.byName} by name, ${entry.viaSelector.length} via selector/pipe name)`);
 
-            for(const m of entry.missing)
-            {
-                console.log(`- MISSING ${m.kind} ${m.name}  (${m.file})`);
-            }
+        for(const v of entry.viaSelector)
+        {
+            console.log(`- via selector: ${v.name} as "${v.via}" - spot-check it is really described`);
         }
 
-        const checks = skillChecks(path.resolve(thirdArg));
-        console.log(`\n## skill checks: ${checks.length ? `${checks.length} problem(s)` : 'ok'}`);
-
-        for(const check of checks)
+        for(const m of entry.missing)
         {
-            console.log(`- ${check}`);
+            console.log(`- MISSING ${m.kind} ${m.name}  (${m.file})`);
         }
     }
+
+    for(const m of manual)
+    {
+        console.log(`\n## ${m.importPath}: MANUAL REVIEW - ${m.reason}`);
+    }
+
+    console.log(`\n## skill checks: ${checks.length ? `${checks.length} problem(s)` : 'ok'}`);
+
+    for(const check of checks)
+    {
+        console.log(`- ${check}`);
+    }
+
+    return 0;
+}
+
+if(import.meta.url === pathToFileURL(process.argv[1] ?? '').href)
+{
+    process.exitCode = main(process.argv.slice(2));
 }

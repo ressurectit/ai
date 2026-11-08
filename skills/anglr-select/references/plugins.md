@@ -39,7 +39,8 @@ Object values, form stores a key:
 ```typescript
 protected selectOptions: RecursivePartial<SelectOptions<Item, string>> =
 {
-    valueExtractor: option => option.value()?.id ?? '',
+    // RecursivePartial strips call signatures → type the parameter explicitly
+    valueExtractor: (option: SelectOption<Item>) => option.value()?.id ?? '',
 };
 ```
 
@@ -94,8 +95,19 @@ Base options `LiveSearchOptions`: `searchDebounceTimeout`, `cssClasses.component
 | Plugin | Selector | Description | Option defaults |
 | --- | --- | --- | --- |
 | `NoLiveSearch` | `no-live-search` | `search()` always `''` | `searchDebounceTimeout: 0` |
-| `FilterLiveSearch` | `filter-live-search` | text input rendered **inside the popup** — requires `popup.options.liveSearchEnabled: true` | `searchDebounceTimeout: 280` (read once at creation), `texts` (`FilterLiveSearchTexts`): `searchPlaceholder: 'filter options'`, `cssClasses.componentElement: 'live-search-component'` |
+| `FilterLiveSearch` | `filter-live-search` | text input rendered **inside the popup** — requires `popup.options.liveSearchEnabled: true` | `searchDebounceTimeout: 280` (read once in the constructor — see note below), `texts` (`FilterLiveSearchTexts`): `searchPlaceholder: 'filter options'`, `cssClasses.componentElement: 'live-search-component'` |
 | `EditLiveSearch` | `edit-live-search` | input rendered inside `EditNormalState` (used by `edit`); opens popup on input, clears on selection / blur, shows `placeholder` | `searchDebounceTimeout: 280`, `cssClasses` (`EditLiveSearchCssClasses`): `componentElement: 'live-search-component'`, `searchElement: 'live-search-input'`, `multiple: 'select-flex-1'`, `single: 'absolute-input'` |
+
+**`FilterLiveSearch.searchDebounceTimeout` cannot be set via `[selectOptions]`**: it is read
+once in the constructor, before `plugins.liveSearch.options` are assigned, so that value is
+silently ignored. Only the DI token works (component `providers` or app config):
+
+```typescript
+providers: [provideLiveSearchOptions<FilterLiveSearchOptions>({searchDebounceTimeout: 500})],
+```
+
+All other built-in plugin options are read reactively (in `computed()`/`effect()` or at use
+time), so they can be changed through `[selectOptions]` at any time.
 
 `EditLiveSearch` needs `EditNormalState` (it is moved into its placeholder) — use
 them together (the `edit` directive does).
@@ -155,7 +167,7 @@ Base interfaces: `Positioner`, `PositionerOptions` (empty marker).
 | Plugin | Description | Options |
 | --- | --- | --- |
 | `StaticValueHandler` (default) | selects options from `availableOptions` matching the value via `valueComparer(value, valueExtractor(option))`; postpones the write until options are loaded | — |
-| `DynamicValueHandler` | does not search the options; resolves each written value through `optionGetter` (sync or async) — for remote/`CodeOptionsGatherer` options where the selected option may not be in the current list | `optionGetter: (value: TPublicValue) => PromiseOr<SelectOption<TValue> \| null>` (default returns a placeholder option with text `'please provide your optionGetter'` — always set it when values are written from outside) |
+| `DynamicValueHandler` | does not search the options; resolves each written value through `optionGetter` (sync or async) — for remote/`CodeOptionsGatherer` options where the selected option may not be in the current list | `optionGetter: (value: TPublicValue) => PromiseOr<SelectOption<TValue> \| undefined \| null>` (default returns a placeholder option with text `'please provide your optionGetter'` — always set it when values are written from outside). In a single select it is also called with `null`/`undefined` when the value is cleared/reset from outside (form reset, bridges call `setValue(null)`) and must then return `null`; in multiple it is called per array item (writing `null` throws) |
 
 ## Configuring
 

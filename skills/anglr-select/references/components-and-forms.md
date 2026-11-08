@@ -24,18 +24,24 @@ forms (differs when `valueExtractor` maps options, e.g. object → id).
 
 Static attribute `multiple` (read via `@Attribute`) sets `selectOptions.multiple: true`.
 
-Public API (`SelectApi`):
+Public API — `SelectApi` interface (what actions/functions and plugins see):
 
 | Member | Type | Description |
 | --- | --- | --- |
-| `selectOptions` | `SelectOptions` | current merged options; assigning a partial object **merges** it |
+| `selectOptions` | `SelectOptions` | current merged options; assigning a partial object **merges** it (setter on `Select`) |
 | `initialized` | `Signal<boolean>` | `true` once all 9 plugins exist and have options; resets to `false` while a plugin is being swapped |
 | `events` | `SelectEvents` | `focus`, `click`, `blur` (`Observable<SelectEvent>`), `setFocus()` |
-| `availableOptions` | `Signal<readonly SelectOptionState[]>` | `<ng-option>` content children (descendants, so `@for`/groups work) |
-| `normalStateTemplate`, `optionTemplate`, `normalStateTagTemplate` | `Signal<TemplateRef \| undefined>` | gathered template directives (`TemplateGatherer`) |
 | `getPlugin(SelectPluginType.X)` | typed plugin | live plugin instance (overloads per slot); only valid after `initialized()` |
 | `execute(...actions)` | `void` | runs `SelectAction`s `(select: SelectApi) => void` |
 | `executeAndReturn(fn)` | `TResult` | runs a `SelectFunction` `(select: SelectApi) => TResult` |
+
+Other public members of `Select` (not part of `SelectApi`):
+
+| Member | Type | From |
+| --- | --- | --- |
+| `availableOptions` | `Signal<readonly SelectOptionState[] \| undefined \| null>` | `OptionsGatherer` — `<ng-option>` content children (descendants, so `@for`/groups work) |
+| `normalStateTemplate`, `optionTemplate`, `normalStateTagTemplate` | `Signal<TemplateRef<…> \| undefined \| null>` | `TemplateGatherer` — gathered template directives |
+| `disabled`, `readonly` | `InputSignalWithTransform<boolean, string \| boolean>` | inputs (see above) |
 
 Get the instance with `viewChild.required<Select<string>>('select')` (template
 ref `#select`) or `viewChild.required(Select)`.
@@ -156,14 +162,14 @@ protected selectedValue = signal<string|null>(null);
 
 | Interface | Members |
 | --- | --- |
-| `SelectOption<TValue>` | `value: Signal<TValue>`, `text: Signal<string>`, `group: Signal<SelectOptionGroup \| null>` — what you create in code (`{value: signal(x), text: signal('X'), group: signal(null)}`) |
+| `SelectOption<TValue>` | `value: Signal<TValue \| undefined \| null>`, `text: Signal<string>`, `group: Signal<SelectOptionGroup \| undefined \| null>` — what you create in code (`{value: signal(x), text: signal('X'), group: signal(null)}`) |
 | `SelectOptionState<TValue>` | `SelectOption` + `index: number`, `active: WritableSignal<boolean>`, `selected: WritableSignal<boolean>` — what plugins/templates receive |
 | `SelectOptionStateSyntetic<TValue>` | `SelectOptionState` + `created?: boolean` (the synthetic "add new option" entry) |
-| `SelectOptionGroup` | `index`, `id`, `text: Signal<string>`, `template: Signal<TemplateRef<{$implicit: string}>>` |
+| `SelectOptionGroup` | `index: number`, `readonly id: string`, `text: Signal<string>`, `template: Signal<TemplateRef<{$implicit: string}> \| undefined \| null>` |
 | `SelectEvents` | `focus`, `click`, `blur` observables + `setFocus()` |
-| `SelectEvent<TData>` | `sourceElement: HTMLElement`, `source: SelectApi \| SelectPlugin`, `data` |
+| `SelectEvent<TData>` | `sourceElement: HTMLElement`, `source: SelectApi \| SelectPlugin`, `data: TData \| undefined \| null` |
 | `SelectApi<TValue, TPublicValue, TCssClasses>` | interface implemented by `Select` (table above) |
-| `OptionsGatherer<TValue>` | `availableOptions: Signal<readonly SelectOptionState[] \| null \| undefined>` |
-| `TemplateGatherer<TValue, TPublicValue>` | the three template signals |
+| `OptionsGatherer<TValue>` | `readonly availableOptions: Signal<readonly SelectOptionState<TValue>[] \| undefined \| null>` |
+| `TemplateGatherer<TValue, TPublicValue>` | `readonly` `normalStateTemplate`, `optionTemplate`, `normalStateTagTemplate`: `Signal<TemplateRef<…Context> \| undefined \| null>` |
 | `InitState` | `{initialized: boolean}` (internal init bookkeeping) |
 | `TempValue<TValue>` | `{value?}` — temporary value kept by form bridges during async writes |

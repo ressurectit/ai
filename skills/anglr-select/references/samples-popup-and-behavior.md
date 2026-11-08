@@ -4,16 +4,42 @@ Usage samples for @anglr/select v17.3.0, taken from the package readme (compile-
 
 ## Contents
 
-- Absolute Popup
+- Absolute Popup (adapted from readme)
 - Popover Popup
 - Cancel Value
 - Hide Caret
 - Add New Option
 - Readonly
 
-## Absolute Popup
+## Absolute Popup (adapted from readme)
 
-Use the `absolute` directive (`SelectAbsolute`) to render the popup as a direct child of `<body>`. The popup isn't clipped by the `overflow: hidden` container around the select:
+Use the `absolute` directive (`SelectAbsolute`) to render the popup as a direct child of `<body>`. The popup isn't clipped by the `overflow: hidden` container around the select (the component class was added so the sample is self-contained):
+
+```typescript
+// absolute.component.ts
+import {Component, ChangeDetectionStrategy, signal} from '@angular/core';
+import {form, FormField} from '@angular/forms/signals';
+import {Option, Select, SelectAbsolute, SelectFormControl} from '@anglr/select';
+
+@Component(
+{
+    selector: 'absolute-sample',
+    templateUrl: 'absolute.component.html',
+    imports:
+    [
+        Select,
+        Option,
+        FormField,
+        SelectFormControl,
+        SelectAbsolute,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class AbsoluteSampleComponent
+{
+    protected field = form(signal<string|null>(null));
+}
+```
 
 ```html
 <!-- absolute.component.html -->

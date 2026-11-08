@@ -57,7 +57,7 @@ export class BasicSampleComponent
 
 ## Multiple Select
 
-Multi-select with signal forms. The `multiple` attribute enables multi-selection: the value is an array and the selected options are shown as tags. `SelectMultipleKeepPopup` keeps the popup open after each pick:
+Multi-select with signal forms. The `multiple` attribute enables multi-selection: the value is an array and the default `SimpleNormalState` shows the selected texts joined by `, ` (tags with remove buttons only together with `edit`, i.e. `EditNormalState`). `SelectMultipleKeepPopup` keeps the popup open after each pick:
 
 ```typescript
 // multiple.component.ts

@@ -33,7 +33,8 @@ This file only adds what is specific to RessurectIT package skills.
 - Non-negotiables
 - Workflow: 1 locate · 2 research · 3 write · 4 verify · 5 test · 6 report
 - Files: `references/research.md`, `references/update-mode.md`,
-  `assets/package-skill-template.md`, `scripts/package-api.mjs`
+  `assets/package-skill-template.md`, `scripts/package-api.mjs` (self-test:
+  `node --test scripts/package-api.test.mjs` — run it after changing the script)
 
 ## Non-negotiables (and why)
 
@@ -78,8 +79,11 @@ node <this-skill>/scripts/package-api.mjs info <package-repo>
 
 Gives name, resolved version (RessurectIT repos keep `0.0.0-placeholder` in
 `package.json`; the real version comes from the latest `v*` git tag, then the
-changelog top entry), npm `latest`, dependencies, entry points, presence of
-readme/changelog/styles/demo.
+changelog top entry), npm `latest` (set `SKIP_NPM=1` when offline),
+dependencies, entry points, presence of readme/changelog/styles/demo.
+`entryPointsForManualReview` lists entry points without `.ts` sources (e.g.
+plain JS) and `stylesExports` the SCSS entry points — both are invisible to
+the export inventory, so research and document them by hand.
 
 - Target version = latest released version unless the user says otherwise.
   If `notes` report HEAD past the tag, look at `changedSinceTag`: docs-only
@@ -110,7 +114,7 @@ it in. Typical layout:
 ├── SKILL.md            router: when-to-use table, install, quick start, pointers
 ├── references/         one file per natural area (components, directives, plugins,
 │                       providers-and-tokens, extensions, styling, extensibility,
-│                       samples); TOC for files over ~300 lines
+│                       samples); each starts with `## Contents`
 ├── assets/             optional boilerplate agents copy (custom plugin skeleton, theme override)
 └── scripts/            optional deterministic helpers
 ```
@@ -120,8 +124,10 @@ alternatives it should win over) and include the version major in it.
 Keep it under the 1024-character frontmatter limit — name the main building
 blocks, not every option.
 
-Samples: prefer readme samples verbatim (they're compile-validated by
-readme-generator). Compiling isn't the same as behaving correctly, though: if
+Samples: prefer readme samples verbatim (they're meant to be compile-validated
+by readme-generator, but not all are — when feasible, type-check TypeScript
+samples with strict `tsc` against the package's `src` and `node_modules`).
+Compiling isn't the same as behaving correctly, though: if
 a readme sample contradicts the source, fix it and mark it
 "(adapted from readme)", and report the readme bug. For anything new, check
 every identifier, selector, input and option against the source. Anonymise
@@ -142,26 +148,29 @@ node <this-skill>/scripts/package-api.mjs coverage <package-repo> <skill-dir>
 
 For each `MISSING` export: document it in the right reference, or consciously
 skip it (internal base classes, render-only helper components, re-exported
-internals). Directives/components/pipes count as covered when their selector or
-pipe name appears. The `skill checks` part of the output flags a missing
+internals). A directive/component/pipe also counts when a selector part or
+pipe name *unique to it* appears (shared and generic names like `formControl`,
+`ngModel`, `input` never count); those are listed as `via selector` —
+spot-check that each is really described, not just mentioned in passing.
+The `skill checks` part of the output flags a missing
 `metadata.version`, a description over 1024 chars, `SKILL.md` over 200 lines,
 files without a Contents list, references that should be split, broken
-pointers and bundled files not linked from `SKILL.md` — fix all of them.
+pointers and bundled files referenced from nowhere — fix all of them.
 
 Coverage only proves a name is *mentioned*, not that what's said is true.
-Spot-check the key claims (defaults, what an attribute/option really does)
-against the implementation, including component `.html` templates. Then re-read `SKILL.md` as an agent that has never seen the
-package: can it pick the right API for a typical task and find the details
-within one hop? The script only sees TypeScript
-exports, so verify SCSS mixins/variables/CSS custom properties from `styles/`
-manually.
+Spot-check the key claims (defaults, what an attribute/option really does,
+the prose around samples) against the implementation, including component
+`.html` templates. Then re-read `SKILL.md` as an agent that has never seen
+the package: can it pick the right API for a typical task and find the
+details within one hop? The script only sees TypeScript exports, so verify
+SCSS mixins/variables/CSS custom properties from `styles/` manually.
 
-### 5. Test (skill-creator style, lightweight by default)
+### 5. Test (lightweight by default)
 
-Offer to run 2–3 realistic consumer prompts ("add a select with live search
-bound to a reactive form…") with the new skill via a subagent, and review the
-produced code together. Run the full skill-creator eval loop only if the user
-asks.
+Offer one trial: a realistic consumer prompt ("add a select with live search
+bound to a reactive form…") run with the new skill via a subagent; review the
+produced code together. More prompts or the full skill-creator eval loop only
+if the user asks.
 
 ### 6. Report
 

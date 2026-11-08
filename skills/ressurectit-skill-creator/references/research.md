@@ -58,6 +58,12 @@ sources — exclude it from greps (`rg -g '!*.d.ts' -g '!*.map' -g '!*.js'`).
   classes). An option declared in an interface but never read is a finding.
 - **Options / config interfaces** — every property, its type, and its
   **default value** (search for `defaultOptions`, `DEFAULT_*`, `provide*`).
+  Also note **when** each option is read: an option read once in a
+  constructor (before per-instance options are applied) only works through
+  DI providers, while reactively read options also work per instance. Agents
+  silently get no effect otherwise.
+- **Null/empty paths** — what callbacks receive on clear/reset (`null`,
+  `undefined`, empty array) and what they must return; samples must handle it.
 - **DI** — `InjectionToken`s and `provide…()` functions: what can be
   configured app-wide vs per instance, and the merge order. Grep who
   actually injects each token; a token nobody injects is a no-op.
@@ -84,8 +90,11 @@ Also check:
 
 ## 4. Reconcile
 
-For every readme statement, confirm it in source. Record:
+For every readme statement — code samples **and the prose around them**
+("shown as tags", "hides the caret") — confirm it in source. Record:
 
+- readme claim contradicts the source → document the real behaviour, adapt
+  the sample (mark "(adapted from readme)"); report as readme bug
 - readme mentions something that no longer exists → don't document; report
 - source exports something the readme doesn't mention → document from source
   (doc-comments + implementation); report as readme gap

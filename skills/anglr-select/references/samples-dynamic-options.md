@@ -5,8 +5,9 @@ Usage samples for @anglr/select v17.3.0, taken from the package readme (compile-
 ## Contents
 
 - Lazy / Dynamic Options
-- Dynamic Options with Remote Data
-- Dynamic Option Getter (Object Values)
+- Dynamic Options with Remote Data (adapted from readme)
+- Dynamic Option Getter (Object Values) (adapted from readme)
+- Option Groups from Code (not from readme)
 
 ## Lazy / Dynamic Options
 
@@ -71,9 +72,9 @@ export class BasicLazySampleComponent
 </ng-select>
 ```
 
-## Dynamic Options with Remote Data
+## Dynamic Options with Remote Data (adapted from readme)
 
-Use `CodeOptionsGatherer` + `DynamicValueHandler` + `FilterLiveSearch` to load options from a remote API. The options are fetched again whenever the live-search text changes. `ItemsService.search(query)` returns a `Promise<Item[]>`, where `Item` has an `id` and a `name`:
+Use `CodeOptionsGatherer` + `DynamicValueHandler` + `FilterLiveSearch` to load options from a remote API. The options are fetched again whenever the live-search text changes. `ItemsService.search(query)` returns a `Promise<Item[]>`, where `Item` has an `id` and a `name`. The `optionGetter` is required whenever the value is set or reset from code (initial value, `setValue`, form reset → `null`); without it the default getter shows `please provide your optionGetter`:
 
 ```typescript
 // dynamic.component.ts
@@ -129,6 +130,30 @@ export class DynamicSampleComponent
             valueHandler:
             {
                 type: DynamicValueHandler,
+                options:
+                {
+                    // resolves values written from outside; null/undefined = cleared
+                    optionGetter: async (value: string|null|undefined) =>
+                    {
+                        if(value == null)
+                        {
+                            return null;
+                        }
+
+                        const item = await this.itemsSvc.getDetail(value);
+
+                        if(!item)
+                        {
+                            return null;
+                        }
+
+                        return {
+                            group: signal(null),
+                            text: signal(item.name),
+                            value: signal(item.id),
+                        };
+                    },
+                },
             },
         },
         optionsGatherer: this.optionsGatherer,
@@ -161,7 +186,7 @@ export class DynamicSampleComponent
 <ng-select #select [selectOptions]="selectOptions" [formField]="selectField"/>
 ```
 
-## Dynamic Option Getter (Object Values)
+## Dynamic Option Getter (Object Values) (adapted from readme)
 
 When option values are objects but the form stores only a key, use `valueExtractor` to produce the public value, and `DynamicValueHandlerOptions.optionGetter` to resolve the option for a value written from outside (such as the initial value). The form below starts with `'second'` and the select displays its text once `ItemsService.getDetail(id)` (returning `Promise<Item|null>`) resolves:
 
@@ -170,7 +195,7 @@ When option values are objects but the form stores only a key, use `valueExtract
 import {Component, ChangeDetectionStrategy, effect, inject, Signal, viewChild, signal} from '@angular/core';
 import {JsonPipe} from '@angular/common';
 import {form, FormField} from '@angular/forms/signals';
-import {CodeOptionsGatherer, DynamicValueHandler, FilterLiveSearch, Select, SelectFormControl, SelectOptions} from '@anglr/select';
+import {CodeOptionsGatherer, DynamicValueHandler, FilterLiveSearch, Select, SelectFormControl, SelectOption, SelectOptions} from '@anglr/select';
 import {getSearch} from '@anglr/select/extensions';
 import {RecursivePartial} from '@jscrpt/common';
 
@@ -205,7 +230,8 @@ export class DynamicOptionGetterSampleComponent
 
     protected selectOptions: RecursivePartial<SelectOptions<Item, string>> =
     {
-        valueExtractor: option => option.value()?.id ?? '',
+        // RecursivePartial strips call signatures → type the parameter explicitly
+        valueExtractor: (option: SelectOption<Item>) => option.value()?.id ?? '',
         plugins:
         {
             liveSearch:
@@ -224,8 +250,14 @@ export class DynamicOptionGetterSampleComponent
                 type: DynamicValueHandler,
                 options:
                 {
-                    optionGetter: async (value: string) =>
+                    optionGetter: async (value: string|null|undefined) =>
                     {
+                        // single select: called with null/undefined on clear/reset
+                        if(value == null)
+                        {
+                            return null;
+                        }
+
                         const item = await this.itemsSvc.getDetail(value);
 
                         if(!item)
@@ -272,3 +304,66 @@ export class DynamicOptionGetterSampleComponent
 <ng-select #select [selectOptions]="selectOptions" [formField]="selectField"/>
 ```
 
+
+## Option Groups from Code (not from readme)
+
+Groups for `CodeOptionsGatherer` are plain `SelectOptionGroup` objects. `SimplePopup` groups **consecutive** options whose `group()` is the **same object** (`===`), so create one group object per group, reuse it and keep its options adjacent. `index` is overwritten by the popup (any number works), `id` becomes the DOM `id` of the group element (keep it unique), `template` may be `signal(null)` (default look renders the text):
+
+```typescript
+// codeGroups.component.ts
+import {Component, ChangeDetectionStrategy, signal} from '@angular/core';
+import {form, FormField} from '@angular/forms/signals';
+import {CodeOptionsGatherer, Select, SelectFormControl, SelectOption, SelectOptionGroup, SelectOptions} from '@anglr/select';
+import {generateId, RecursivePartial} from '@jscrpt/common';
+
+function createGroup(text: string): SelectOptionGroup
+{
+    return {
+        index: 0,
+        id: `group-${generateId(10)}`,
+        text: signal(text),
+        template: signal(null),
+    };
+}
+
+@Component(
+{
+    selector: 'code-groups-sample',
+    template: `<ng-select [selectOptions]="selectOptions" [formField]="selectField"/>`,
+    imports:
+    [
+        Select,
+        FormField,
+        SelectFormControl,
+    ],
+    changeDetection: ChangeDetectionStrategy.OnPush
+})
+export class CodeGroupsSampleComponent
+{
+    protected optionsGatherer: CodeOptionsGatherer<string> = new CodeOptionsGatherer<string>();
+    protected selectField = form(signal<string|null>(null));
+
+    protected selectOptions: RecursivePartial<SelectOptions<string>> =
+    {
+        optionsGatherer: this.optionsGatherer,
+    };
+
+    constructor()
+    {
+        const fruit = createGroup('Fruit');
+        const vegetables = createGroup('Vegetables');
+
+        const options: SelectOption<string>[] =
+        [
+            {value: signal('apple'), text: signal('Apple'), group: signal(fruit)},
+            {value: signal('pear'), text: signal('Pear'), group: signal(fruit)},
+            {value: signal('carrot'), text: signal('Carrot'), group: signal(vegetables)},
+            {value: signal('other'), text: signal('Other (no group)'), group: signal(null)},
+        ];
+
+        this.optionsGatherer.setAvailableOptions(options);
+    }
+}
+```
+
+The default `StaticValueHandler` is fine here because all options are known; with remote options combine it with `DynamicValueHandler` as above.

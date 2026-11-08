@@ -5,10 +5,25 @@ in place for the new version (git history keeps the old one).
 
 ## Contents
 
+0. Protect the existing skill
 1. Find the baseline
 2. Collect what changed
 3. Apply changes
 4. Re-verify and bump
+
+## 0. Protect the existing skill
+
+"Git history keeps the old one" only holds if the old one is committed:
+
+```bash
+git -C <skill-dir> status --short -- .      # must be empty
+git -C <skill-dir> ls-files --error-unmatch SKILL.md   # must succeed (tracked)
+```
+
+If the skill is untracked or has uncommitted changes, stop and ask the user
+(commit first, or confirm overwriting). Before deleting, renaming or
+splitting any existing file, list those files and get the user's
+confirmation; plain in-place edits of tracked files need no extra prompt.
 
 ## 1. Find the baseline
 
@@ -44,7 +59,7 @@ the temporary worktree.
   and description triggers if it's user-facing
 - changed options / signatures / defaults → update tables and samples in place
 - removed / renamed → grep the whole skill for the old name (samples
-  included) and remove or rewrite
+  included) and rewrite; removing whole files follows step 0 (ask first)
 - dependency bumps → installation / peer dependency info
 - new entry point → entry-point table + new reference file if needed
 

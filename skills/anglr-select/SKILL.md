@@ -22,14 +22,13 @@ metadata:
 
 # @anglr/select
 
+> Created for **@anglr/select v17.3.0**. APIs of other versions may differ — check the installed version (`node_modules/@anglr/select/package.json`) and warn the user if it doesn't match.
+
 ## Contents
 
 Overview · When to use what · Installation · Entry points · Quick start · Key concepts · Common decisions & pitfalls · References · Links
 
 ## Overview
-
-> Created for **@anglr/select v17.3.0**. APIs of other versions may differ — check the installed
-> version (`node_modules/@anglr/select/package.json`) and warn the user if it doesn't match.
 
 Angular component representing an HTML `<select>`: standalone, OnPush and signal-driven.
 `<ng-select>` is only a host; all behaviour lives in **9 plugin slots** (Interactions,
@@ -44,10 +43,10 @@ from `<ng-option>` children or from code (`CodeOptionsGatherer`).
 | Basic select bound to a signal form | `<ng-select [formField]>` + `Select`, `Option`, `FormField`, `SelectFormControl` | `references/components-and-forms.md` |
 | Bind to `FormControl` / `formControlName` / `ngModel` | `SelectControlValueAccessor` | `references/components-and-forms.md` |
 | Plain two-way binding to a signal | `withDirectAccess` + `[(value)]` (`WithDirectAccess`) | `references/components-and-forms.md` |
-| Multi-select (value is an array, tags) | static `multiple` attribute; keep popup open → import `SelectMultipleKeepPopup` | `references/directives-and-templates.md` |
+| Multi-select (value is an array; texts joined by `, `, tags only with `edit`) | static `multiple` attribute; keep popup open → import `SelectMultipleKeepPopup` | `references/directives-and-templates.md` |
 | Type-ahead / editable input | `edit` attribute (`SelectEdit`) | `references/directives-and-templates.md` |
 | Filter input inside popup | `FilterLiveSearch` + `popup.options.liveSearchEnabled: true` | `references/plugins.md` |
-| Option groups | `<ng-option-group text>` (+ `*optionGroupTemplate`) | `references/components-and-forms.md` |
+| Option groups | `<ng-option-group text>` (+ `*optionGroupTemplate`); from code: `SelectOptionGroup` objects | `references/components-and-forms.md`, `references/samples-dynamic-options.md` |
 | Options loaded later (signal / HTTP) | `@for` over `<ng-option>` | `references/samples-dynamic-options.md` |
 | Server-side search / options from code | `CodeOptionsGatherer` + `DynamicValueHandler` + `getSearch()` | `references/samples-dynamic-options.md`, `references/plugins.md` |
 | Object values, store only a key | `valueExtractor` (+ `valueComparer`) in `SelectOptions` | `references/plugins.md` |
@@ -74,12 +73,12 @@ Required (declared as `dependencies`, keep the app's versions compatible):
 App setup needed once:
 
 1. **Position service** — the default positioner (`CommonPositioner`) injects
-   `POSITION` from `@anglr/common`; without it the select fails to create:
+   `POSITION` from `@anglr/common`; without it the select fails to create.
+   `FloatingUiDomPosition` needs `npm i @floating-ui/dom` (optional dep of `@anglr/common`):
    ```typescript
    import {providePosition} from '@anglr/common';
    import {FloatingUiDomPosition} from '@anglr/common/floating-ui';
-   // app.config.ts providers:
-   providePosition(FloatingUiDomPosition),
+   providePosition(FloatingUiDomPosition), // app.config.ts providers
    ```
 2. **Styles** — include a theme inside a rule (see `references/styling.md`).
    The CSS uses `--size-*` variables from `@css-styles/common`
@@ -161,7 +160,8 @@ export class MyComponent
 - Multiple value must be an array, not a scalar; initialise multiple fields
   with `[]` — `DynamicValueHandler` throws when `null` is written to a
   multiple select (`StaticValueHandler` treats `null` as clear).
-- `FilterLiveSearch` is invisible unless `popup.options.liveSearchEnabled: true`.
+- `FilterLiveSearch` is invisible unless `popup.options.liveSearchEnabled: true`; its
+  `searchDebounceTimeout` works only via `provideLiveSearchOptions()`, not `[selectOptions]`.
 - Search text is used as a **RegExp** in the default `textCompare`
   (`new RegExp(search, 'i')`) — override `textCompare` if users may type
   `(`, `[`, `*`, ….
@@ -190,7 +190,7 @@ Read only what the task needs:
 - `references/extensibility.md` — writing custom plugins, `SelectBus`, `SelectPluginInstances`, `OptionsHandlerBase`, custom options gatherer, utility functions and types
 - `references/styling.md` — Sass setup, themes, customization, full `--select-*` variable list, CSS classes
 - `references/samples-basics.md` — basic, multiple, edit, live search, highlighting, custom templates
-- `references/samples-dynamic-options.md` — lazy / `@for` options, remote data, object values
+- `references/samples-dynamic-options.md` — lazy / `@for` options, remote data, object values, option groups from code
 - `references/samples-popup-and-behavior.md` — absolute, popover, cancel, hide caret, add new option, readonly
 
 ## Links
