@@ -53,15 +53,19 @@ The script:
 - looks for a clone of `ng-universal-demo` among the **siblings** of the
   library repo, and clones it as `../universal-demo` when none exists
 - creates (or reuses) a **separate worktree**
-  `../universal-demo-readme-<slug>` on branch `readme-samples/<slug>` from
-  origin's default branch, so the user's own demo checkout is never touched
+  `../universal-demo-readme-<slug>-<version>` on branch
+  `readme-<slug>/<version>` from `origin/<version>`, so the user's own demo
+  checkout is never touched. `<version>` is the demo version branch (e.g.
+  `2.0`), following the demo repo's `<prefix>/<version>` branch convention. It
+  defaults to origin's default branch; pass `--demo-version <version>` to
+  target another one (e.g. when the library is built for an older demo line)
 - runs `npm ci` in the worktree when `node_modules` is missing
 - builds the library from its current source (`npm run bundle`, or `build`),
   packs it with `npm pack` and installs the tarball into the worktree with
   `--no-save --legacy-peer-deps`. The packed version is
   `0.0.0-placeholder`, so the peer-range check has to be relaxed.
 
-It prints `DEMO_WORKTREE=…`, `DEMO_BRANCH=…` and `LIB_SLUG=…`. Use these
+It prints `DEMO_WORKTREE=…`, `DEMO_BRANCH=…`, `DEMO_VERSION=…` and `LIB_SLUG=…`. Use these
 values below. Use `--dry-run` to see what it would do. The first run takes a
 few minutes (cloning and `npm ci`), so tell the user before starting it.
 
@@ -218,7 +222,7 @@ If the library source changes during the work, re-run the setup script. It
 reuses the worktree and only rebuilds and reinstalls the library. Then
 rebuild the demo.
 
-In update mode, when a `readme-samples/<slug>` branch already exists from an
+In update mode, when a `readme-<slug>/<version>` branch already exists from an
 earlier run, the script reuses it. Read `readme-samples.json` to find the
 existing sample pages, update them for the changes, and add pages for any
 readme samples that are missing.
@@ -230,7 +234,7 @@ answer. Never remove anything without confirmation:
 
 ```bash
 git -C <demo-repo> worktree remove <worktree>       # removes the worktree directory
-git -C <demo-repo> branch -D readme-samples/<slug>   # only if the user doesn't want to keep the branch
+git -C <demo-repo> branch -D readme-<slug>/<version>   # only if the user doesn't want to keep the branch
 ```
 
 Mention that keeping the branch makes the next update run faster, because

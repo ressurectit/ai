@@ -109,7 +109,9 @@ sample. In short:
 
 1. Run `scripts/setup-demo-worktree.sh <library-repo>`. It finds universal-demo
    among the siblings of the library repo (or clones it there), creates a
-   separate worktree on branch `readme-samples/<slug>`, then builds and packs
+   separate worktree on branch `readme-<slug>/<version>` (`<version>` is the
+   demo version branch, e.g. `2.0`, default origin's default branch, override
+   with `--demo-version`), then builds and packs
    the library and installs it into the worktree.
 2. Implement **each** readme sample as its own lazy-loaded component page
    (`loadComponent`, like `notFound`/`accessDenied`) under
@@ -247,7 +249,7 @@ The same obfuscation rules apply.
 
 Follow "Sample validation" for **every** code sample in the readme, not only
 the new or changed ones. Existing samples may have drifted, and compiling
-them is the reliable staleness check. If a `readme-samples/<slug>` branch
+them is the reliable staleness check. If a `readme-<slug>/<version>` branch
 exists from an earlier run, reuse its pages through `readme-samples.json`.
 Get the user's approval before touching readme samples.
 

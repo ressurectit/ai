@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Prepares a universal-demo worktree for validating readme samples of a library.
 #
-# Usage: setup-demo-worktree.sh [--dry-run] [<library-repo-path>]
+# Usage: setup-demo-worktree.sh [--dry-run] [--demo-version <version>] [<library-repo-path>]
 #
 # 1. finds a clone of ng-universal-demo among siblings of the library repo
 #    (clones it as ../universal-demo when none exists)
-# 2. creates (or reuses) worktree ../universal-demo-readme-<slug> on branch
-#    readme-samples/<slug>, based on origin's default branch
+# 2. creates (or reuses) worktree ../universal-demo-readme-<slug>-<version> on
+#    branch readme-<slug>/<version>, based on origin/<version>. <version> is the
+#    demo version branch (e.g. 2.0); it defaults to origin's default branch
+#    (origin/HEAD) and can be overridden with --demo-version
 # 3. runs `npm ci` in the worktree when node_modules is missing
 # 4. builds the library from its current source, packs it with `npm pack`
 #    and installs the tarball into the worktree (--no-save)
@@ -15,20 +17,24 @@
 # changing library source). It never deletes anything.
 #
 # Prints KEY=value lines at the end (DEMO_REPO, DEMO_WORKTREE, DEMO_BRANCH,
-# LIB_NAME, LIB_SLUG, LIB_TARBALL).
+# DEMO_VERSION, LIB_NAME, LIB_SLUG, LIB_TARBALL).
 
 set -euo pipefail
 
 DEMO_URL="https://github.com/kukjevov/ng-universal-demo.git"
 DRY_RUN=0
 LIB_DIR=""
+DEMO_VERSION=""
 
-for arg in "$@"; do
-    case "$arg" in
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         --dry-run) DRY_RUN=1 ;;
-        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
-        *) LIB_DIR="$arg" ;;
+        --demo-version) DEMO_VERSION="${2:?--demo-version requires a value}"; shift ;;
+        --demo-version=*) DEMO_VERSION="${1#*=}" ;;
+        -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+        *) LIB_DIR="$1" ;;
     esac
+    shift
 done
 
 LIB_DIR="$(cd "${LIB_DIR:-.}" && git rev-parse --show-toplevel)"
@@ -82,11 +88,34 @@ else
 fi
 
 # ---------- worktree ----------
-DEMO_BRANCH="readme-samples/$LIB_SLUG"
+if [[ -e "$DEMO_REPO/.git" ]]; then
+    run git -C "$DEMO_REPO" fetch origin --quiet
+fi
+
+# demo version branch (e.g. 2.0): explicit, or origin's default branch
+if [[ -z "$DEMO_VERSION" ]]; then
+    DEFAULT_REF="$(git -C "$DEMO_REPO" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+    DEMO_VERSION="${DEFAULT_REF#origin/}"
+fi
+if [[ -z "$DEMO_VERSION" ]]; then
+    if [[ $DRY_RUN -eq 1 ]]; then
+        DEMO_VERSION="<version>"
+    else
+        log "ERROR: cannot determine demo version (origin/HEAD not set), pass --demo-version <version>"
+        exit 1
+    fi
+fi
+BASE_REF="origin/$DEMO_VERSION"
+if [[ -e "$DEMO_REPO/.git" ]] && ! git -C "$DEMO_REPO" rev-parse --verify --quiet "$BASE_REF" >/dev/null; then
+    log "ERROR: demo version branch $BASE_REF does not exist"
+    exit 1
+fi
+log "demo version: $DEMO_VERSION"
+
+DEMO_BRANCH="readme-$LIB_SLUG/$DEMO_VERSION"
 DEMO_WORKTREE=""
 
 if [[ -e "$DEMO_REPO/.git" ]]; then
-    run git -C "$DEMO_REPO" fetch origin --quiet
 
     # reuse an existing worktree for the branch
     DEMO_WORKTREE="$(git -C "$DEMO_REPO" worktree list --porcelain | awk -v b="refs/heads/$DEMO_BRANCH" '
@@ -97,7 +126,7 @@ fi
 if [[ -n "$DEMO_WORKTREE" ]]; then
     log "reusing worktree $DEMO_WORKTREE (branch $DEMO_BRANCH)"
 else
-    DEMO_WORKTREE="$PARENT_DIR/universal-demo-readme-$LIB_SLUG"
+    DEMO_WORKTREE="$PARENT_DIR/universal-demo-readme-$LIB_SLUG-$DEMO_VERSION"
     if [[ -e "$DEMO_WORKTREE" ]]; then
         log "ERROR: $DEMO_WORKTREE exists but is not a worktree of branch $DEMO_BRANCH"
         exit 1
@@ -107,7 +136,6 @@ else
         log "branch $DEMO_BRANCH exists, attaching new worktree to it"
         run git -C "$DEMO_REPO" worktree add "$DEMO_WORKTREE" "$DEMO_BRANCH"
     else
-        BASE_REF="$(git -C "$DEMO_REPO" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || echo origin/HEAD)"
         log "creating worktree $DEMO_WORKTREE on new branch $DEMO_BRANCH from $BASE_REF"
         run git -C "$DEMO_REPO" worktree add -b "$DEMO_BRANCH" "$DEMO_WORKTREE" "$BASE_REF"
     fi
@@ -156,6 +184,7 @@ fi
 echo "DEMO_REPO=$DEMO_REPO"
 echo "DEMO_WORKTREE=$DEMO_WORKTREE"
 echo "DEMO_BRANCH=$DEMO_BRANCH"
+echo "DEMO_VERSION=$DEMO_VERSION"
 echo "LIB_NAME=$LIB_NAME"
 echo "LIB_SLUG=$LIB_SLUG"
 echo "LIB_TARBALL=$LIB_TARBALL"
