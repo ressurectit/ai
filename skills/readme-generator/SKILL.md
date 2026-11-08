@@ -3,17 +3,17 @@ name: readme-generator
 description: >-
   Create or update the `readme.md` of a RessurectIT library project (npm
   packages such as `@anglr/*`, `@jscrpt/*`, `@css-styles/*`, repos like
-  ng-select, ng-grid, ng-common, jscrpt-common). Writes a full, general-purpose
-  library README — overview, installation, quick start, API/concepts, features,
-  extensibility, styling and samples — from the library's source code and from
-  usage samples, with any consumer-project specifics obfuscated. In update mode
-  it finds when the readme was last updated, reads the changelog since that
-  revision, and brings the readme up to the library's current state. Use this
-  whenever the user asks to write, generate, create, refresh, update, extend or
-  "add samples to" a readme / README / documentation for a RessurectIT or
-  `@anglr` project, or says the readme is outdated / missing — even if they
-  don't say "readme" explicitly (e.g. "document this library", "docs for the
-  new version").
+  ng-select, ng-grid, ng-common, jscrpt-common). Writes a full library README
+  (overview, installation, quick start, API, features, extensibility, styling,
+  samples) from source code and usage samples, with consumer-project specifics
+  obfuscated. Every sample is implemented as a runnable page in a
+  universal-demo worktree, compiled against the locally built library and
+  approved by the user before it enters the readme. Update mode reads the
+  changelog since the last readme commit and brings the readme up to date.
+  Use this whenever the user asks to write, generate, refresh, update, extend,
+  validate or "add samples to" a readme / README / docs of a RessurectIT or
+  `@anglr` project, or says the readme is outdated / missing, even without
+  saying "readme" (e.g. "document this library", "docs for the new version").
 ---
 
 # Readme Generator (RessurectIT libraries)
@@ -34,8 +34,13 @@ Three principles override everything else:
    name.
 3. **Ground every statement in code.** Read the real source (exports,
    doc-comments, options interfaces, default values) before describing
-   anything. Every code snippet must compile against the current public API.
-   Don't invent inputs, options or behavior.
+   anything. Don't invent inputs, options or behavior.
+4. **Every sample is proven, not assumed.** All code samples are validated
+   by compiling them as runnable pages in a universal-demo worktree, against
+   the locally built library, and the user approves them. Readme samples are
+   also the source for skills that teach agents to consume the package, so a
+   sample that doesn't compile spreads errors downstream. See "Sample
+   validation".
 
 ## 0. Detect the mode
 
@@ -97,6 +102,29 @@ Before writing the file, **scan your draft for leaks**. Grep it for every
 consumer-project name, path fragment, distinctive identifier and non-English
 word you saw while reading the sources. Fix every hit.
 
+## Sample validation
+
+Read `references/sample-validation.md` before you implement or change any
+sample. In short:
+
+1. Run `scripts/setup-demo-worktree.sh <library-repo>`. It finds universal-demo
+   among the siblings of the library repo (or clones it there), creates a
+   separate worktree on branch `readme-samples/<slug>`, then builds and packs
+   the library and installs it into the worktree.
+2. Implement **each** readme sample as its own lazy-loaded component page
+   (`loadComponent`, like `notFound`/`accessDenied`) under
+   `app/pages/samples/<slug>/`, with mock data and the obfuscation rules
+   applied.
+3. Run `npm run build` in the worktree and fix until it's clean (strict
+   templates).
+4. Let the user run the demo and approve the samples. Iterate on their
+   feedback.
+5. Only then copy the samples, verbatim, from the demo files into the readme.
+6. Offer cleanup of the worktree, and only remove it with confirmation.
+
+Writing samples in the demo first, and the readme second, means each fix is
+made once, in compilable code, instead of in the readme and again in the demo.
+
 ## Create workflow
 
 ### 1. Understand the library
@@ -130,7 +158,13 @@ are the most important or relevant. Put the important ones first and give
 them more explanation. Mark one that you'd strongly recommend with ⭐ and a
 short callout explaining why.
 
-### 3. Write the readme
+### 3. Implement and validate the samples
+
+Follow "Sample validation". Implement the Quick Start, the extensibility
+worked example and every chosen sample as demo pages. Build them, then get
+the user's approval.
+
+### 4. Write the readme
 
 Follow the skeleton in `references/readme-skeleton.md`. Read it now. It's
 the house structure used by existing RessurectIT readmes. Keep the order, and
@@ -144,8 +178,9 @@ Emphasise three things, because they're what readers come for:
   implementation.
 - **Samples** — complete, copy-pasteable snippets (imports included) with a
   sentence or two explaining what each one demonstrates and why you'd use it.
+  Copy them from the approved demo files.
 
-### 4. Review (see "Quality bar"), then write the file and report.
+### 5. Review (see "Quality bar"), then write the file, offer cleanup and report.
 
 ## Update workflow
 
@@ -208,11 +243,20 @@ table isn't enough. Ask the user whether they have a project or code showing
 it in use, and take samples from it (check `demo/` and the site samples too).
 The same obfuscation rules apply.
 
-### 5. Edit, review, report
+### 5. Validate all samples
+
+Follow "Sample validation" for **every** code sample in the readme, not only
+the new or changed ones. Existing samples may have drifted, and compiling
+them is the reliable staleness check. If a `readme-samples/<slug>` branch
+exists from an earlier run, reuse its pages through `readme-samples.json`.
+Get the user's approval before touching readme samples.
+
+### 6. Edit, review, report
 
 Use `edit` for targeted changes and keep untouched sections as they are.
-Update the TOC when you add, rename or remove headings. Run the "Quality bar"
-check, then report.
+Copy changed samples verbatim from the approved demo files. Update the TOC
+when you add, rename or remove headings. Run the "Quality bar" check, offer
+cleanup, then report.
 
 ## Style conventions
 
@@ -235,8 +279,10 @@ Before finishing, re-read the readme as a newcomer and as an existing user:
 
 - Does it explain what the library is, its features, how to install and
   start, and how to extend it?
-- Is every snippet valid against the **current** source (imports, names,
-  selectors, option shapes)?
+- Has every TypeScript/HTML/SCSS snippet been compiled in the demo worktree
+  (`npm run build` clean) against the locally built library, and does it
+  match its demo file verbatim (apart from scaffolding)?
+- Has the user approved the samples in the running demo?
 - Is there no version history ("new in", "since", "previously",
   "deprecated in vX")?
 - **Leak check passed?** No consumer project names, paths, URLs, domain
@@ -251,4 +297,8 @@ Then report:
 - the mode used
 - for update mode, the baseline revision and the changelog range covered
 - the sections added or changed
+- the demo worktree path, branch and the list of sample routes, plus the
+  build result
+- any samples dropped because they couldn't compile, and any missing
+  library exports you found
 - any places where you'd like more samples from the user
