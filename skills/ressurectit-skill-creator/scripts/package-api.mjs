@@ -23,7 +23,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {execSync} from 'node:child_process';
-import {pathToFileURL} from 'node:url';
+import {fileURLToPath} from 'node:url';
 
 const IGNORED_DIRS = new Set(['node_modules', 'demo', 'src', 'styles', 'docs', 'temp', 'es2015', 'es2020', 'es2022', 'es5', 'es', 'module', 'typings', '.git']);
 
@@ -801,7 +801,24 @@ export function main(argv)
     return 0;
 }
 
-if(import.meta.url === pathToFileURL(process.argv[1] ?? '').href)
+/**
+ * Real path of a file (symlinks resolved), or the path itself when it cannot be resolved.
+ * @param {string} file
+ */
+function realPathOf(file)
+{
+    try
+    {
+        return fs.realpathSync(file);
+    }
+    catch
+    {
+        return file;
+    }
+}
+
+// compare real paths, so the script also runs when invoked through a symlinked skills directory
+if(process.argv[1] && realPathOf(fileURLToPath(import.meta.url)) === realPathOf(path.resolve(process.argv[1])))
 {
     process.exitCode = main(process.argv.slice(2));
 }
