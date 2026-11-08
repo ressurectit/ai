@@ -46,8 +46,6 @@ animation ends. The class names must exist in global CSS, for example the
 
 ## Sample: dynamically created component (from readme)
 
-The readme sample with the missing `inputBinding` import added.
-
 A component without any animation:
 
 ```typescript
@@ -135,6 +133,5 @@ export class DynamicSampleComponent
   inputs (for example, a wrapper that receives them from its parent).
   Otherwise prefer `animate.enter` / `animate.leave`, and never combine both
   on one element.
-- The class names are kebab-case CSS classes (`fade-in`). The readme's
-  template sample uses `'fadeIn'` / `'fadeOut'`, which works only if you
-  define such classes yourself.
+- The class names are kebab-case CSS classes (`fade-in`). A name like
+  `'fadeIn'` works only if you define such a class yourself.

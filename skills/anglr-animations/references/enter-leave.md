@@ -56,8 +56,8 @@ and `slide-in-animation`), `slideOutAnimation`, `flyInAnimation`,
 | `slide-in` | enter | expands from height 0 (transition + `@starting-style`), with opacity | `--slide-in-duration` (400ms), `--slide-in-to-max-height` (1000px) |
 | `slide-in-animation` | enter | keyframes variant of `slide-in`: animates real height (0 → `auto`), margins, paddings and borders | `--slide-in-animation-duration` (400ms), `--slide-in-animation-to-height` (auto), `--slide-in-animation-to-max-height` (1000px), `--slide-in-animation-to-opacity` (1), `--slide-in-animation-to-{margin-top,margin-bottom,padding-top,padding-bottom,border-top,border-bottom}` (0) |
 | `slide-out` | leave | collapses height, margin, padding and border to 0 with opacity | `--slide-out-duration` (400ms) |
-| `fly-in` | enter | slides in horizontally with fade | `--fly-in-duration` (400ms), `--fly-in-from-opacity` (0), `--fly-in-to-opacity` (1), `--fly-in-from-transform` (`translateX(25%)`) |
-| `fly-out` | leave | slides out horizontally with fade | `--fly-out-duration` (400ms), `--fly-out-from-opacity` (1), `--fly-out-to-opacity` (0), `--fly-out-to-x` (-25%) |
+| `fly-in` | enter | slides in horizontally with fade; `position: absolute` while running | `--fly-in-duration` (400ms), `--fly-in-from-opacity` (0), `--fly-in-to-opacity` (1), `--fly-in-from-transform` (`translateX(25%)`) |
+| `fly-out` | leave | slides out horizontally with fade; `position: absolute` while running | `--fly-out-duration` (400ms), `--fly-out-from-opacity` (1), `--fly-out-to-opacity` (0), `--fly-out-to-x` (-25%) |
 
 Notes:
 
@@ -69,6 +69,10 @@ Notes:
   the values in its variables (all 0 by default). If the element has its own
   padding or margin, set the matching `--slide-in-animation-to-*` variables to
   those values, otherwise the element jumps when the class is removed.
+- `fly-in` / `fly-out` take the element out of the layout (`position: absolute`)
+  while they run, so an entering and a leaving element can overlap (for
+  example, page transitions). Give the parent `position: relative` and a
+  stable size, and avoid these classes on in-flow items such as list rows.
 - Tune the classes per scope by setting the variables on a parent or on the
   element itself:
 
