@@ -17,13 +17,13 @@ description: >-
   @anglr/animations.
 metadata:
   package: "@anglr/animations"
-  version: "11.1.1"
+  version: "11.1.2"
   repository: "https://github.com/ressurectit/ng-animations"
 ---
 
 # @anglr/animations
 
-> Created for **@anglr/animations v11.1.1**. APIs of other versions may differ —
+> Created for **@anglr/animations v11.1.2**. APIs of other versions may differ —
 > check the installed version (`node_modules/@anglr/animations/package.json`)
 > and warn the user if it doesn't match.
 
