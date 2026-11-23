@@ -14,13 +14,13 @@ description: >-
   drag & drop designers or node editors in @anglr/* projects, even when @anglr/dynamic is not named.
 metadata:
   package: "@anglr/dynamic"
-  version: "1.0.0"
+  version: "1.1.0"
   repository: "https://github.com/ressurectit/ng-dynamic"
 ---
 
 # @anglr/dynamic
 
-> Created for **@anglr/dynamic v1.0.0**. APIs of other versions may differ — check the installed
+> Created for **@anglr/dynamic v1.1.0**. APIs of other versions may differ — check the installed
 > version (`node_modules/@anglr/dynamic/package.json`) and warn the user if it doesn't match.
 
 ## Contents
@@ -43,6 +43,7 @@ Pages are plain JSON: a **layout** (tree of `{id, package, name, options}` nodes
 | Options / children / endpoints of a built-in item | catalog or `scripts/dynamic-items.mjs` | `references/items-basic.md`, `references/items-forms-grid.md` |
 | Own component / node / package | `LayoutComponentBase`, `@PureRelationsComponent`, `type.ts`, `with…()` feature | `references/own-package.md` |
 | Drag & drop page designer / node editor | `<layout-editor>`, `<relations-editor>` | `references/editors.md` |
+| Replace a built-in/own properties editor block | `{provide: ExistingControlComponent, useValue: MyControlComponent}` after `provideDynamic()` | `references/editors.md` → 7a |
 | Form from metadata | `withFormComponents()`, `withFormControlBuilder()`, `FORM_COMPONENT_CONTROL` | `references/samples.md` |
 | Reusable stored layouts | `templateBlock`, custom components, `MetadataStorage` | `references/samples.md` |
 | Angular components in your template inside relations | static components | `references/samples.md` |
@@ -58,7 +59,8 @@ npm install @anglr/dynamic
 Required build setup (details in `references/setup.md`): `tsconfig` `experimentalDecorators: true` and
 `useDefineForClassFields: false`; `angular.json` loaders `".monaco-type": "text"`, `".ttf": "file"`.
 Editors additionally need Monaco assets, `@anglr/common` providers (permanent storage, position,
-`TitledDialogService`), `DndModule.forRoot({backend: HTML5Backend})` and library CSS.
+`TitledDialogService`), `DndModule.forRoot({backend: HTML5Backend})` (+ `DndService` when not in root) and library CSS.
+`ng serve` needs `"prebundle": false`, otherwise built-in items render as *not found*.
 Optional deps per entry point: `postcss`+`postcss-prefix-selector` (css), `handlebars`,
 `@anglr/rest` (rest), `tinymce`+`@tinymce/tinymce-angular`, `@anglr/grid` (grid).
 
@@ -149,6 +151,7 @@ export class DynamicPageComponent
 - `withRelationsMetadataStorage()` only applies with a core feature containing the layout runtime; relations editor scopes always need `withPackageManager()`.
 - `DynamicModule` is the type of a lazily loaded ES module, not an NgModule — there is no `forRoot()`; setup is `provideDynamic()`. There is no generic `children` option and no `(output)` binding syntax in metadata.
 - Use plain properties (not signals) for relations inputs/outputs; keep `useDefineForClassFields: false`.
+- Relations debugger shows nothing unless the build `define` sets `ngRelationsDebugger: true` (default `false`).
 
 ## Scripts
 

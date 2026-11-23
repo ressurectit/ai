@@ -9,6 +9,7 @@
 5. Properties editor: model and decorators
 6. Property types and properties controls
 7. Custom properties control / property type
+7a. Overriding properties controls
 8. Defaults override
 9. Custom components and custom relations in editors
 10. Static components in the relations editor
@@ -171,6 +172,13 @@ Built-in item controls: `ButtonPresetsPropertiesControlComponent` (`BUTTONS_PRES
 `PropertiesControlRendererDirective`, `PropertyTypeControlRendererDirective`, modules
 `PropertiesControlsModule`, `PropertyTypeControlsModule`; `LayoutPropertiesModelType`, `PropertiesControlGetter`.
 
+Getters run in the **injection context** of the properties editor and resolve the component **through DI**:
+the component type is the token, the provided value is the component type to render.
+`genericPropertiesControlFor()` resolves `DefaultGenericPropertiesControlComponent`,
+`codePropertiesControlFor()` resolves `BaseCodePropertiesControlComponent`, `getPropertiesControl(type)`
+resolves `type` and falls back to `type` itself when nothing is provided. That makes every control
+overridable (section 7a).
+
 ## 7. Custom properties control / property type
 
 ```ts
@@ -203,6 +211,63 @@ controls **plus** yours (the token isn't multi):
 ```ts
 {provide: LAYOUT_EDITOR_PROPERTY_TYPE_CONTROLS, useValue: {inputString: InputStringComponent, textarea: TextareaComponent, inputNumber: InputNumberComponent, inputBoolean: InputBooleanComponent, selectValue: SelectValueComponent, color: ColorTypeControlComponent}}
 ```
+
+## 7a. Overriding properties controls
+
+Replace a control everywhere it's used without touching item metadata — a `ValueProvider` placed
+**after** `provideDynamic()` in the same `providers` array (or in the `layoutEditor` providers of your own
+`DynamicFeature`):
+
+```ts
+providers:
+[
+    provideDynamic(withLayoutEditor(), withBasicComponents()),
+    //component type of built-in properties control is token, value is component type used instead
+    <ValueProvider>
+    {
+        provide: ComponentStylingPropertiesControlComponent,
+        useValue: StylingPropertiesControlComponent,
+    },
+],
+```
+
+- `withLayoutEditor()` provides `ComponentStylingPropertiesControlComponent`,
+  `DefaultGenericPropertiesControlComponent` and `BaseCodePropertiesControlComponent` as tokens.
+- `withBasicComponents()`, `withFormComponents()`, `withMaterialComponents()`, `withTinyMceComponents()`
+  and `withCustomComponents()` provide their item-specific controls the same way; publicly exported
+  (so overridable from outside) are `ButtonPresetsPropertiesControlComponent` and
+  `RowsColumnsPropertiesControlComponent` (`@anglr/dynamic/basic-components`).
+- Own controls registered with `getPropertiesControl(MyControlComponent)` are overridable the same way.
+
+Replacement control reusing built-in margin/padding blocks (adapted from readme):
+
+```ts
+@Component(
+{
+    selector: 'styling-properties-control',
+    template: `@if(form)
+               {
+                   <div class="properties-form-group" [formGroup]="form">
+                       <label class="properties-control-label">Css class</label>
+                       <select class="form-control" formControlName="cssClass">
+                           @for(cssClass of cssClasses; track cssClass)
+                           {
+                               <option [value]="cssClass">{{cssClass || '(none)'}}</option>
+                           }
+                       </select>
+                   </div>
+               }
+               <margin-control class="properties-form-group" [form]="form" [propertiesMetadata]="propertiesMetadata"/>
+               <padding-control class="properties-form-group" [form]="form" [propertiesMetadata]="propertiesMetadata"/>`,
+    imports: [ReactiveFormsModule, MarginControlComponent, PaddingControlComponent],
+})
+export class StylingPropertiesControlComponent extends PropertiesControlBase<ComponentStylingOptions> implements PropertiesControl<ComponentStylingOptions>
+{
+    protected cssClasses: string[] = ['', 'text-primary', 'text-success', 'text-danger', 'font-bold'];
+}
+```
+
+`ComponentStylingOptions` comes from `@anglr/dynamic/layout`; the rest from `@anglr/dynamic/layout-editor`.
 
 ## 8. Defaults override
 
@@ -276,4 +341,6 @@ and `provideRelationsDebuggerImplementation()` (`@anglr/dynamic/relations-debugg
 (`RelationsCanvasDebugComponent`, `DebuggerNodeComponent`, `RelationNodeInputDebugComponent`,
 `RelationNodeOutputDebugComponent`, `NodeRelationPathDebug`, `MetadataHistoryManagerDebug`,
 `RelationsDebuggerDynamicModuleItemsProvider`, `RELATIONS_DEBUGGER_RELATIONS_NODES_PROVIDER`, pipes
-`JsonFormattedPipe`, `StepNamePipe`). Disable hooks in production with `ngRelationsDebugger: false`.
+`JsonFormattedPipe`, `StepNamePipe`). The hooks run **only** when the build-time global
+`ngRelationsDebugger` is defined as `true` (Angular build `define`, default `false`, see `setup.md` → 2);
+without it the debugger has nothing to show.

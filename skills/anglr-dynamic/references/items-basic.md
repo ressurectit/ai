@@ -1,6 +1,6 @@
 # Built-in items: basic, css, handlebars, rest, tinymce, math, custom components
 
-Catalog of @anglr/dynamic 1.0.0 items for writing metadata. Generated with `scripts/dynamic-items.mjs`
+Catalog of @anglr/dynamic 1.1.0 items for writing metadata. Generated with `scripts/dynamic-items.mjs`
 and annotated; `null|undefined` is omitted from types. Run the script on `node_modules/@anglr/dynamic`
 to get the same data for the installed version.
 

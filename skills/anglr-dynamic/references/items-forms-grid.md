@@ -1,6 +1,6 @@
 # Built-in items: form, material, grid
 
-Catalog of @anglr/dynamic 1.0.0 form, Angular Material and `@anglr/grid` items. Entry format is
+Catalog of @anglr/dynamic 1.1.0 form, Angular Material and `@anglr/grid` items. Entry format is
 explained in `items-basic.md` → How to read entries.
 
 ## Contents

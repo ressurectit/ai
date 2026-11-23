@@ -53,13 +53,17 @@ basic-components import `.monaco-type` typings):
   `node_modules/monaco-editor/min` as asset folder `monaco-editor` or provide `MONACO_EDITOR_RESOURCES_PATH`
   (default `'monaco-editor/vs'`). Pure runtime rendering doesn't need them.
 - **TinyMCE assets** (only `tinymce-components`): served under the global `ngDynamicTinymcePath` (default `'tinymce'`).
+- **Development server**: the built-in packages load items with relative dynamic imports
+  (``import(`../../dynamicItems/${name}/type.js`)``); Vite dependency prebundling of `ng serve` breaks
+  them and every item renders as *not found*. Set `"prebundle": false` in `angular.json` →
+  `architect.serve.options`.
 - **Styles**: editors and built-in components need the library CSS (`styling.md`).
 - **Build-time globals** (Angular build `define`):
 
 | Global | Default | Effect |
 | --- | --- | --- |
 | `ngDesignerMetadata` | `true` | `false` turns editor metadata decorators (`@LayoutEditorMetadata`, `@RelationsEditorMetadata`, `@LayoutProperty*`) into no-ops for runtime-only builds (`@DescendantsGetter` stays) |
-| `ngRelationsDebugger` | `true` | `false` skips relations debugger hooks |
+| `ngRelationsDebugger` | `false` | `true` activates relations debugger hooks; required by the relations debugger (`editors.md` → 12) |
 | `ngDynamicTinymcePath` | `'tinymce'` | TinyMCE asset path |
 
 ## 3. Application-level providers for editors
@@ -72,7 +76,22 @@ Runtime rendering needs only `provideDynamic()`. Editors use services from `@ang
 | `providePosition(FloatingUiDomPosition)` (`@anglr/common`, `@anglr/common/floating-ui`) | layout editor overlays/placeholders, relations debugger |
 | `TitledDialogService` + `importProvidersFrom(MatDialogModule)` (`@anglr/common/material`) | relations node properties, code editor dialogs |
 | `HotkeyModule.forRoot()` (`angular2-hotkeys`) + `AppHotkeysService` (`@anglr/common/hotkeys`) | `withEditorHotkeys()` |
-| `importProvidersFrom(DndModule.forRoot({backend: HTML5Backend}))` (`@ng-dnd/core`, `react-dnd-html5-backend`) | layout editor drag & drop (can be on the editor route) |
+| `importProvidersFrom(DndModule.forRoot({backend: HTML5Backend}))` + `DndService` (`@ng-dnd/core`, `react-dnd-html5-backend`) | layout editor drag & drop (can be on the editor route) |
+
+When the drag & drop providers live on the editor route (not in root), list `DndService` next to them —
+it is `providedIn: 'root'` and would otherwise be created in the root injector without a `DragDropManager`:
+
+```ts
+{
+    path: 'designer',
+    loadComponent: () => import('./pages/designer/designer.component').then(m => m.DesignerComponent),
+    providers:
+    [
+        importProvidersFrom(DndModule.forRoot({backend: HTML5Backend})),
+        DndService,
+    ],
+}
+```
 
 ## 4. provideDynamic and scopes
 
